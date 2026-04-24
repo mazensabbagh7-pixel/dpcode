@@ -28,24 +28,24 @@ export type AgentRunStatus = typeof AgentRunStatus.Type;
 export const AgentDefinition = Schema.Struct({
   id: TrimmedNonEmptyString,
   name: TrimmedNonEmptyString,
-  description: Schema.optional(Schema.String),
+  description: Schema.optional(Schema.NullOr(Schema.String)),
   provider: ProviderKind,
   modelSelection: ModelSelection,
   /** Appended to the provider's base system prompt on every run. */
-  systemPrompt: Schema.optional(Schema.String),
+  systemPrompt: Schema.optional(Schema.NullOr(Schema.String)),
   /** Task prompt sent as the first user message. Supports {{variable}} substitution. */
   taskTemplate: TrimmedNonEmptyString,
   /** MCP tool names this agent is allowed to call. Empty = inherit session defaults. */
   toolAllowlist: Schema.Array(Schema.String),
   /** Working directory for the spawned thread. Null = inherit from project default. */
-  cwd: Schema.optional(TrimmedNonEmptyString),
+  cwd: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   envMode: ThreadEnvironmentMode,
   /** Cron expression for scheduled runs. Null = manual-only. Only honored in V1+. */
-  schedule: Schema.optional(TrimmedNonEmptyString),
+  schedule: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   enabled: Schema.Boolean,
   createdAt: Schema.Number,
   updatedAt: Schema.Number,
-  lastRunAt: Schema.optional(Schema.Number),
+  lastRunAt: Schema.optional(Schema.NullOr(Schema.Number)),
 });
 export type AgentDefinition = typeof AgentDefinition.Type;
 
@@ -60,8 +60,8 @@ export const AgentRun = Schema.Struct({
   trigger: AgentRunTrigger,
   status: AgentRunStatus,
   startedAt: Schema.Number,
-  endedAt: Schema.optional(Schema.Number),
-  errorMessage: Schema.optional(Schema.String),
+  endedAt: Schema.optional(Schema.NullOr(Schema.Number)),
+  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
   /** The task_template with all {{variables}} substituted. This is what was actually sent. */
   renderedTask: Schema.String,
 });
