@@ -69,7 +69,13 @@ interface BranchToolbarBranchSelectorProps {
 }
 
 function toBranchActionErrorMessage(error: unknown): string {
-  return error instanceof Error ? error.message : "An error occurred.";
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return "An error occurred.";
+  }
+  const withoutStack = trimmed.split(/\n\s+at\s+/)[0]?.trim() ?? trimmed;
+  return withoutStack.replace(/^Error:\s*/, "");
 }
 
 function getBranchTriggerLabel(input: {

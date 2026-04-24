@@ -79,7 +79,7 @@ import {
   resolveToggledChatPanelPatch,
 } from "./-chatThreadRoute.logic";
 import { getLocalStorageItem, setLocalStorageItem } from "~/hooks/useLocalStorage";
-import { TriangleAlertIcon } from "~/lib/icons";
+import { TriangleAlertIcon, XIcon } from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
 
@@ -661,6 +661,7 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
     [activeSplitView?.leftThreadId, activeSplitView?.rightThreadId],
   );
   const workspaceCollision = useStore(selectWorkspaceCollision);
+  const [dismissedCollisionKey, setDismissedCollisionKey] = useState<string | null>(null);
 
   useEffect(() => {
     if (!activeSplitView) {
@@ -884,6 +885,17 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
 
   const leftBasis = `${activeSplitView.ratio * 100}%`;
   const rightBasis = `${(1 - activeSplitView.ratio) * 100}%`;
+  const workspaceCollisionKey = workspaceCollision
+    ? [
+        workspaceCollision.leftThreadId,
+        workspaceCollision.rightThreadId,
+        workspaceCollision.workspacePath,
+        workspaceCollision.leftBranch ?? "",
+        workspaceCollision.rightBranch ?? "",
+      ].join("|")
+    : null;
+  const showWorkspaceCollision =
+    workspaceCollision !== null && workspaceCollisionKey !== dismissedCollisionKey;
   const chooseThreadForPane = (threadId: ThreadIdType, paneOverride?: SplitViewPane) => {
     const pane = paneOverride ?? threadPickerPane;
     if (!pane) {
@@ -928,11 +940,11 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
         ref={rootRef}
         className="relative flex h-dvh min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
       >
-        {workspaceCollision ? (
+        {showWorkspaceCollision && workspaceCollision ? (
           <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center px-3">
             <div
               role="alert"
-              className="pointer-events-auto flex max-w-[min(44rem,calc(100vw-2rem))] items-center gap-2 rounded-lg border border-warning/40 bg-background/95 px-3 py-2 text-xs text-foreground shadow-sm backdrop-blur"
+              className="pointer-events-auto flex max-w-[min(44rem,calc(100vw-2rem))] items-center gap-2 rounded-lg border border-warning/40 bg-background/95 px-2.5 py-2 text-xs text-foreground shadow-sm backdrop-blur"
             >
               <TriangleAlertIcon className="size-4 shrink-0 text-warning" />
               <span className="min-w-0 truncate">
@@ -944,6 +956,19 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
                   : ""}
                 . Use separate worktrees before parallel edits.
               </span>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon-sm"
+                className="size-6 shrink-0"
+                aria-label="Dismiss split workspace warning"
+                title="Dismiss warning"
+                onClick={() => {
+                  setDismissedCollisionKey(workspaceCollisionKey);
+                }}
+              >
+                <XIcon className="size-3.5" />
+              </Button>
             </div>
           </div>
         ) : null}

@@ -1,8 +1,8 @@
 // FILE: MitmProxyLayer.ts
 // Purpose: Effect layer that boots the local MITM proxy on server startup
 // and exposes MitmProxyService. Honors the DPCODE_MITM_ENABLED env var — when
-// set to "false"/"0"/"no"/"off", the layer returns a no-op service and never
-// opens a listener or CA on disk.
+// set to "true"/"1"/"yes"/"on", the layer starts the proxy; otherwise it
+// returns a no-op service and never opens a listener or CA on disk.
 //
 // Phase B1 scope: capture Anthropic rate-limit snapshots into an in-memory
 // Ref. No activity emission yet — Phase B3 wires the snapshot into the UI.
@@ -20,7 +20,7 @@ const ANTHROPIC_HOST = "api.anthropic.com";
 
 function isEnabled(): boolean {
   const raw = process.env.DPCODE_MITM_ENABLED?.toLowerCase().trim();
-  return raw !== "false" && raw !== "0" && raw !== "no" && raw !== "off";
+  return raw === "true" || raw === "1" || raw === "yes" || raw === "on";
 }
 
 function toMessage(cause: unknown, fallback: string): string {

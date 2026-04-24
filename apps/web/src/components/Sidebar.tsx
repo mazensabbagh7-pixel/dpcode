@@ -1074,6 +1074,7 @@ export default function Sidebar() {
   const pathname = useLocation({ select: (loc) => loc.pathname });
   const isOnSettings = useLocation({ select: (loc) => loc.pathname === "/settings" });
   const isOnAgents = useLocation({ select: (loc) => loc.pathname === "/agents" });
+  const isOnWorkflow = useLocation({ select: (loc) => loc.pathname === "/workflow" });
   const isOnWorkspace = pathname.startsWith("/workspace");
   const { settings: appSettings, updateSettings } = useAppSettings();
   const { handleNewThread } = useHandleNewThread();
@@ -5744,6 +5745,18 @@ export default function Sidebar() {
           </div>
         ) : null}
         <SidebarMenu>
+          {!isOnWorkflow && !isOnSettings ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="default"
+                className="h-8 flex-1 gap-2.5 rounded-lg px-2 text-[length:var(--app-font-size-ui,12px)] font-normal text-muted-foreground/72 hover:bg-[var(--sidebar-accent)]"
+                onClick={() => void navigate({ to: "/workflow" })}
+              >
+                <GitPullRequestIcon className="size-[15px]" />
+                <span>Workflow</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           {!isOnAgents && !isOnSettings ? (
             <SidebarMenuItem>
               <SidebarMenuButton

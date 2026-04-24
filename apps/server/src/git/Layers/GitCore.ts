@@ -1907,10 +1907,35 @@ export const makeGitCore = (options?: { executeOverride?: GitCoreShape["execute"
       });
 
     const createBranch: GitCoreShape["createBranch"] = (input) =>
-      executeGit("GitCore.createBranch", input.cwd, ["branch", input.branch], {
-        timeoutMs: 10_000,
-        fallbackErrorMessage: "git branch create failed",
-      }).pipe(Effect.asVoid);
+      Effect.gen(function* () {
+        const hasHead = yield* executeGit(
+          "GitCore.createBranch.hasHead",
+          input.cwd,
+          ["rev-parse", "--verify", "HEAD"],
+          {
+            timeoutMs: 5_000,
+            allowNonZeroExit: true,
+          },
+        ).pipe(Effect.map((result) => result.code === 0));
+
+        if (!hasHead) {
+          yield* executeGit(
+            "GitCore.createBranch.unbornCheckout",
+            input.cwd,
+            ["checkout", "-b", input.branch],
+            {
+              timeoutMs: 10_000,
+              fallbackErrorMessage: "git branch create failed",
+            },
+          );
+          return;
+        }
+
+        yield* executeGit("GitCore.createBranch", input.cwd, ["branch", input.branch], {
+          timeoutMs: 10_000,
+          fallbackErrorMessage: "git branch create failed",
+        });
+      });
 
     const checkoutBranch: GitCoreShape["checkoutBranch"] = (input) =>
       Effect.gen(function* () {

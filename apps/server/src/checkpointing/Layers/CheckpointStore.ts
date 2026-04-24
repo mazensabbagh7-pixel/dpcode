@@ -89,6 +89,14 @@ const makeCheckpointStore = Effect.gen(function* () {
   const captureCheckpoint: CheckpointStoreShape["captureCheckpoint"] = (input) =>
     Effect.gen(function* () {
       const operation = "CheckpointStore.captureCheckpoint";
+      const headExists = yield* hasHeadCommit(input.cwd);
+      if (!headExists) {
+        yield* Effect.logDebug("checkpoint capture skipped because workspace has no HEAD", {
+          cwd: input.cwd,
+          checkpointRef: input.checkpointRef,
+        });
+        return;
+      }
 
       yield* Effect.acquireUseRelease(
         fs.makeTempDirectory({ prefix: "t3-fs-checkpoint-" }),
@@ -104,15 +112,12 @@ const makeCheckpointStore = Effect.gen(function* () {
               GIT_COMMITTER_EMAIL: "t3code@users.noreply.github.com",
             };
 
-            const headExists = yield* hasHeadCommit(input.cwd);
-            if (headExists) {
-              yield* git.execute({
-                operation,
-                cwd: input.cwd,
-                args: ["read-tree", "HEAD"],
-                env: commitEnv,
-              });
-            }
+            yield* git.execute({
+              operation,
+              cwd: input.cwd,
+              args: ["read-tree", "HEAD"],
+              env: commitEnv,
+            });
 
             yield* git.execute({
               operation,

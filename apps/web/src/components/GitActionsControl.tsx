@@ -126,6 +126,16 @@ interface GitPickerMenuItem {
   onSelect: () => void;
 }
 
+function toGitActionErrorMessage(error: unknown): string {
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const trimmed = raw.trim();
+  if (trimmed.length === 0) {
+    return "An error occurred.";
+  }
+  const withoutStack = trimmed.split(/\n\s+at\s+/)[0]?.trim() ?? trimmed;
+  return withoutStack.replace(/^Error:\s*/, "");
+}
+
 function formatElapsedDescription(startedAtMs: number | null): string | undefined {
   if (startedAtMs === null) {
     return undefined;
@@ -534,7 +544,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
       toastManager.add({
         type: "error",
         title: "Unable to open PR link",
-        description: err instanceof Error ? err.message : "An error occurred.",
+        description: toGitActionErrorMessage(err),
         data: threadToastData,
       });
     });
@@ -554,7 +564,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
       }),
       error: (err) => ({
         title: "Sync failed",
-        description: err instanceof Error ? err.message : "An error occurred.",
+        description: toGitActionErrorMessage(err),
         data: threadToastData,
       }),
     });
@@ -764,7 +774,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
         toastManager.update(resolvedProgressToastId, {
           type: "error",
           title: "Action failed",
-          description: err instanceof Error ? err.message : "An error occurred.",
+          description: toGitActionErrorMessage(err),
           data: threadToastData,
         });
       }
@@ -954,7 +964,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
         toastManager.update(toastId, {
           type: "error",
           title: "Failed to create branch",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          description: toGitActionErrorMessage(error),
           data: threadToastData,
         });
       }
@@ -1105,7 +1115,7 @@ export default function GitActionsControl({ gitCwd, activeThreadId }: GitActions
         toastManager.add({
           type: "error",
           title: "Unable to open file",
-          description: error instanceof Error ? error.message : "An error occurred.",
+          description: toGitActionErrorMessage(error),
           data: threadToastData,
         });
       });

@@ -773,6 +773,17 @@ it.layer(TestLayer)("git integration", (it) => {
       }),
     );
 
+    it.effect("creates and selects a branch in an unborn repository", () =>
+      Effect.gen(function* () {
+        const tmp = yield* makeTmpDir();
+        yield* initRepoWithoutCommit(tmp);
+        yield* (yield* GitCore).createBranch({ cwd: tmp, branch: "feature/unborn" });
+
+        const currentBranch = yield* git(tmp, ["branch", "--show-current"]);
+        expect(currentBranch).toBe("feature/unborn");
+      }),
+    );
+
     it.effect("throws when branch already exists", () =>
       Effect.gen(function* () {
         const tmp = yield* makeTmpDir();

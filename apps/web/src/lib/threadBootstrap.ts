@@ -25,6 +25,7 @@ import { DEFAULT_INTERACTION_MODE, type ThreadPrimarySurface } from "../types";
 export interface NewThreadOptions {
   branch?: string | null;
   worktreePath?: string | null;
+  lastKnownPr?: OrchestrationThreadPullRequest | null;
   envMode?: DraftThreadEnvMode;
   entryPoint?: ThreadPrimarySurface;
   temporary?: boolean;
@@ -172,6 +173,7 @@ export function createFreshDraftThreadSeed(input: {
     createdAt: input.createdAt,
     branch: input.options?.branch ?? null,
     worktreePath: input.options?.worktreePath ?? null,
+    lastKnownPr: input.options?.lastKnownPr ?? null,
     envMode: input.options?.envMode ?? "local",
     runtimeMode: DEFAULT_RUNTIME_MODE,
     entryPoint: input.entryPoint,
@@ -184,6 +186,7 @@ export function hasDraftContextOverrides(options?: NewThreadOptions): boolean {
   return (
     options?.branch !== undefined ||
     options?.worktreePath !== undefined ||
+    options?.lastKnownPr !== undefined ||
     options?.envMode !== undefined
   );
 }
@@ -196,6 +199,7 @@ export function buildDraftThreadContextPatch(
   branch?: string | null;
   entryPoint: ThreadPrimarySurface;
   envMode?: DraftThreadEnvMode;
+  lastKnownPr?: OrchestrationThreadPullRequest | null;
   worktreePath?: string | null;
 } | null {
   if (!hasDraftContextOverrides(options)) {
@@ -208,6 +212,7 @@ export function buildDraftThreadContextPatch(
     ...(options?.worktreePath !== undefined || shouldClearWorktreeForLocalMode
       ? { worktreePath: options?.worktreePath ?? null }
       : {}),
+    ...(options?.lastKnownPr !== undefined ? { lastKnownPr: options.lastKnownPr ?? null } : {}),
     ...(options?.envMode !== undefined ? { envMode: options.envMode } : {}),
     entryPoint,
   };
