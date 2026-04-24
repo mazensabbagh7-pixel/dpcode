@@ -124,7 +124,7 @@ const PROVIDER_CUSTOM_MODEL_CONFIG: Record<ProviderKind, ProviderCustomModelConf
     provider: "claudeAgent",
     settingsKey: "customClaudeModels",
     defaultSettingsKey: "customClaudeModels",
-    title: "Claude",
+    title: "Claudio",
     description: "Save additional Claude model slugs for the picker and `/model` command.",
     placeholder: "your-claude-model-slug",
     example: "claude-sonnet-5-0",

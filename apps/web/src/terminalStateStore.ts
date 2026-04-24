@@ -145,7 +145,7 @@ function clearTerminalReviewState(
 
 function generatedTerminalTitleBase(cliKind: TerminalCliKind | null): string {
   if (cliKind === "codex") return "Codex";
-  if (cliKind === "claude") return "Claude";
+  if (cliKind === "claude") return "Claudio";
   return "Terminal";
 }
 

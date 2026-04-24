@@ -35,7 +35,7 @@ export const PROVIDER_OPTIONS: Array<{
   available: boolean;
 }> = [
   { value: "codex", label: "Codex", available: true },
-  { value: "claudeAgent", label: "Claude", available: true },
+  { value: "claudeAgent", label: "Claudio", available: true },
   { value: "gemini", label: "Gemini", available: true },
   { value: "opencode", label: "OpenCode", available: true },
 ];
