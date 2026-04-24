@@ -19,7 +19,6 @@ import {
 import { Input } from "./ui/input";
 import { Popover, PopoverPopup, PopoverTrigger } from "./ui/popover";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
-import { Switch } from "./ui/switch";
 import { Textarea } from "./ui/textarea";
 import { toastManager } from "./ui/toast";
 import { copyTextToClipboard } from "../hooks/useCopyToClipboard";
@@ -229,14 +228,6 @@ export function ThemePackEditor({
             ariaLabel={`${titleLabel} code font`}
             mono
             onChange={(next) => updateThemeFonts(variant, { code: next.length > 0 ? next : null })}
-          />
-        </ThemeRow>
-
-        <ThemeRow label="Translucent sidebar">
-          <Switch
-            checked={!theme.opaqueWindows}
-            onCheckedChange={(checked) => updateThemePack(variant, { opaqueWindows: !checked })}
-            aria-label={`${titleLabel} translucent sidebar`}
           />
         </ThemeRow>
 

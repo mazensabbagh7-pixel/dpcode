@@ -49,6 +49,7 @@ import { useWorkspaceStore, workspaceThreadId } from "../workspaceStore";
 import { useRetainedThreadDetailIds } from "../threadDetailSubscriptionRetention";
 import { useAppTypography } from "../hooks/useAppTypography";
 import { useTheme } from "../hooks/useTheme";
+import { useAppSettings } from "../appSettings";
 import { invalidateGitQueries } from "../lib/gitReactQuery";
 import { hasLiveThreadsWithMissingProjects } from "../lib/desktopProjectRecovery";
 import { parseDiffRouteSearch } from "../diffRouteSearch";
@@ -68,6 +69,14 @@ export const Route = createRootRouteWithContext<{
 function RootRouteView() {
   useAppTypography();
   useTheme();
+  const { settings } = useAppSettings();
+
+  useEffect(() => {
+    document.documentElement.setAttribute(
+      "data-performance-mode",
+      settings.performanceMode ? "on" : "off",
+    );
+  }, [settings.performanceMode]);
 
   if (!readNativeApi()) {
     return (

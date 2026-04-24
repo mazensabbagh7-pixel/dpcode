@@ -1236,14 +1236,39 @@ const make = Effect.gen(function* () {
       });
     }
 
-    // Orchestration turn ids are not provider turn ids, so interrupt by session.
     const providerThreadId = resolveSubagentProviderThreadId(thread.id, providerThread.id);
     const turnId = event.payload.turnId ?? thread.session?.activeTurnId ?? undefined;
-    yield* providerService.interruptTurn({
-      threadId: providerThread.id,
-      ...(turnId ? { turnId } : {}),
-      ...(providerThreadId ? { providerThreadId } : {}),
-    });
+    const interruptEffect = providerService
+      .interruptTurn({
+        threadId: providerThread.id,
+        ...(turnId ? { turnId } : {}),
+        ...(providerThreadId ? { providerThreadId } : {}),
+      })
+      .pipe(
+        Effect.catchCause((cause) =>
+          Effect.gen(function* () {
+            const detail = Cause.pretty(cause);
+            yield* appendProviderFailureActivity({
+              threadId: event.payload.threadId,
+              kind: "provider.turn.interrupt.failed",
+              summary: "Provider turn interrupt failed",
+              detail,
+              turnId: event.payload.turnId ?? null,
+              createdAt: event.payload.createdAt,
+            });
+            yield* Effect.logWarning("provider turn interrupt failed without blocking reactor", {
+              threadId: event.payload.threadId,
+              providerThreadId: providerThread.id,
+              cause: detail,
+            });
+          }),
+        ),
+      );
+
+    // Interrupts can time out while a long-running agent is still active. Run
+    // the provider interrupt out-of-band so one background turn cannot hold the
+    // reactor queue and block unrelated sessions/history updates.
+    yield* Effect.forkScoped(interruptEffect);
   });
 
   const processApprovalResponseRequested = Effect.fnUntraced(function* (

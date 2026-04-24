@@ -450,6 +450,7 @@ function SettingsRouteView() {
     ...(settings.enableAssistantStreaming !== defaults.enableAssistantStreaming
       ? ["Assistant output"]
       : []),
+    ...(settings.performanceMode !== defaults.performanceMode ? ["Performance mode"] : []),
     ...(settings.diffWordWrap !== defaults.diffWordWrap ? ["Diff line wrapping"] : []),
     ...(settings.confirmThreadDelete !== defaults.confirmThreadDelete
       ? ["Delete confirmation"]
@@ -1391,6 +1392,34 @@ function SettingsRouteView() {
                   })
                 }
                 aria-label="Stream assistant messages"
+              />
+            }
+          />
+
+          <SettingsRow
+            title="Performance mode"
+            description="Reduce UI animation, transition, and blur work while coding."
+            resetAction={
+              settings.performanceMode !== defaults.performanceMode ? (
+                <SettingResetButton
+                  label="performance mode"
+                  onClick={() =>
+                    updateSettings({
+                      performanceMode: defaults.performanceMode,
+                    })
+                  }
+                />
+              ) : null
+            }
+            control={
+              <Switch
+                checked={settings.performanceMode}
+                onCheckedChange={(checked) =>
+                  updateSettings({
+                    performanceMode: Boolean(checked),
+                  })
+                }
+                aria-label="Performance mode"
               />
             }
           />

@@ -50,6 +50,23 @@
   * {
     @apply border-border outline-ring/30;
   }
+  :root[data-performance-mode="on"] *,
+  :root[data-performance-mode="on"] *::before,
+  :root[data-performance-mode="on"] *::after {
+    transition-duration: 0ms !important;
+    transition-delay: 0ms !important;
+    scroll-behavior: auto !important;
+  }
+  :root[data-performance-mode="on"] *:not(.animate-spin):not([class*="animate-spin"]) {
+    animation-duration: 0ms !important;
+    animation-delay: 0ms !important;
+    animation-iteration-count: 1 !important;
+  }
+  :root[data-performance-mode="on"] [class*="backdrop-blur"],
+  :root[data-performance-mode="on"] .app-sidebar-surface {
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+  }
   body {
     @apply text-foreground relative;
     background: var(--app-shell-background, transparent);
@@ -66,59 +83,21 @@
     background: var(--color-background-button-secondary-hover);
   }
 
-  /* Let the renderer switch between Codex-style translucent and opaque shells
-     without duplicating sidebar markup or class strings. */
+  /* Keep the shell opaque on Linux for predictable rendering performance. */
   .app-sidebar-surface {
     background: var(--app-sidebar-surface, var(--card));
     box-shadow: var(--app-sidebar-shadow, none);
-    backdrop-filter: var(--app-sidebar-backdrop-filter, none);
-    -webkit-backdrop-filter: var(--app-sidebar-backdrop-filter, none);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
   }
 
-  /* Animate terminal run state in CSS so many open terminals don't schedule JS timers. */
   .terminal-running-indicator__dot {
-    animation: terminal-running-indicator-pulse 640ms ease-in-out infinite;
-    opacity: 0.24;
-    transform: scale(0.7);
-    will-change: opacity, transform;
-  }
-}
-
-@keyframes terminal-running-indicator-pulse {
-  0%,
-  100% {
-    opacity: 0.24;
-    transform: scale(0.7);
-  }
-
-  35% {
-    opacity: 0.92;
-    transform: scale(1);
-  }
-}
-
-/* Smooth entry for chat pane swaps (empty landing <-> transcript+bottom composer). */
-@keyframes chat-pane-enter {
-  from {
-    opacity: 0;
-    transform: translateY(6px);
-  }
-
-  to {
-    opacity: 1;
-    transform: none;
+    opacity: 0.82;
   }
 }
 
 .chat-pane-enter {
-  animation: chat-pane-enter 220ms cubic-bezier(0.22, 1, 0.36, 1);
-  will-change: opacity, transform;
-}
-
-@media (prefers-reduced-motion: reduce) {
-  .chat-pane-enter {
-    animation: none;
-  }
+  animation: none;
 }
 
 /* Suppress all transitions during theme changes */
@@ -141,9 +120,6 @@
   border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2);
   cursor: pointer;
-  transition:
-    transform 120ms ease,
-    box-shadow 120ms ease;
 }
 
 .theme-slider::-moz-range-thumb {
@@ -161,13 +137,6 @@
 }
 .theme-slider:focus-visible::-moz-range-thumb {
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--ring) 32%, transparent);
-}
-
-.theme-slider:hover::-webkit-slider-thumb {
-  transform: scale(1.08);
-}
-.theme-slider:hover::-moz-range-thumb {
-  transform: scale(1.08);
 }
 
 /* Theme settings color picker: keep react-colorful aligned with the compact popover. */

@@ -659,11 +659,10 @@ export function buildThemeCssVariables(
   const resolvedTokens = buildResolvedThemeTokens(pack, variant);
   const codexVariables = resolvedTokens.codexVariables;
   const readCodexVariable = (name: string) => getRequiredVariable(codexVariables, name);
-  const material: WindowMaterial =
-    options?.electron === true && !pack.theme.opaqueWindows ? "translucent" : "opaque";
+  void options;
+  const material: WindowMaterial = "opaque";
   const warningColor = variant === "dark" ? "#f5b44a" : "#d97706";
   const sidebarSurfaceUnder = readCodexVariable("--color-background-surface-under");
-  const sidebarRaisedSurface = readCodexVariable("--color-background-elevated-primary");
   const composerFocusBorder = buildComposerFocusBorder(
     pack,
     variant,
@@ -672,27 +671,14 @@ export function buildThemeCssVariables(
   const appVariables: Record<string, string> = {
     "--accent": readCodexVariable("--color-background-accent"),
     "--accent-foreground": readCodexVariable("--color-text-foreground"),
-    "--app-shell-background":
-      material === "translucent"
-        ? "transparent"
-        : readCodexVariable("--color-background-surface-under"),
+    "--app-shell-background": readCodexVariable("--color-background-surface-under"),
     "--app-composer-focus-border": composerFocusBorder,
-    "--app-sidebar-backdrop-filter":
-      material === "translucent" ? "blur(8px) saturate(135%)" : "none",
+    "--app-sidebar-backdrop-filter": "none",
     "--app-sidebar-shadow":
-      material === "translucent"
-        ? variant === "dark"
-          ? "inset 0 1px 0 rgba(255,255,255,0.024)"
-          : "inset 0 1px 0 rgba(0,0,0,0.025)"
-        : variant === "dark"
-          ? "inset 0 1px 0 rgba(255,255,255,0.025)"
-          : "inset 0 1px 0 rgba(0,0,0,0.03)",
-    "--app-sidebar-surface":
-      material === "translucent"
-        ? variant === "dark"
-          ? `color-mix(in srgb, ${sidebarSurfaceUnder} 72%, transparent)`
-          : `color-mix(in srgb, ${sidebarSurfaceUnder} 64%, transparent)`
-        : sidebarSurfaceUnder,
+      variant === "dark"
+        ? "inset 0 1px 0 rgba(255,255,255,0.025)"
+        : "inset 0 1px 0 rgba(0,0,0,0.03)",
+    "--app-sidebar-surface": sidebarSurfaceUnder,
     "--background": readCodexVariable("--color-background-surface-under"),
     "--border": readCodexVariable("--color-border"),
     "--card": readCodexVariable("--color-background-panel"),
