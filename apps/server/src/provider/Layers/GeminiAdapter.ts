@@ -1507,6 +1507,167 @@ const makeGeminiAdapter = Effect.fn("makeGeminiAdapter")(function* (
     });
   });
 
+  // ── ACP fs/* handlers (Phase 1 tool parity) ─────────────────────────
+  //
+  // Gemini CLI speaks ACP. When we advertise fs.readTextFile / writeTextFile
+  // as supported capabilities, the agent expects the client (us) to respond
+  // to `fs/read_text_file` and `fs/write_text_file` JSON-RPC requests with
+  // either a result payload or a JSON-RPC error. The protocol shapes come
+  // from @agentclientprotocol/sdk:
+  //   - ReadTextFileRequest  { path, line?, limit?, sessionId }
+  //   - ReadTextFileResponse { content }
+  //   - WriteTextFileRequest { path, content, sessionId }
+  //   - WriteTextFileResponse {}
+  //
+  // Sandbox policy (Phase 1):
+  //   - reads: any absolute path the server process can access.
+  //   - writes: must resolve inside context.session.cwd. Out-of-workspace
+  //     writes are rejected with a JSON-RPC error (-32000). An approval-
+  //     gated bypass for out-of-cwd writes is deferred to Phase 1b.
+
+  const ACP_ERR_INVALID_PARAMS = -32_602;
+  const ACP_ERR_INTERNAL = -32_603;
+  const ACP_ERR_SANDBOX = -32_000;
+
+  const sendAcpResponse = (
+    context: GeminiSessionContext,
+    id: JsonRpcId,
+    result: Record<string, unknown>,
+  ) => writeJsonMessage(context, { id, result });
+
+  const sendAcpError = (
+    context: GeminiSessionContext,
+    id: JsonRpcId,
+    code: number,
+    message: string,
+  ) => writeJsonMessage(context, { id, error: { code, message } });
+
+  const isPathInsideCwd = (absolutePath: string, cwd: string): boolean => {
+    const relative = path.relative(cwd, absolutePath);
+    return (
+      relative.length === 0 ||
+      (!relative.startsWith("..") && !path.isAbsolute(relative))
+    );
+  };
+
+  const applyLineRange = (
+    content: string,
+    line: number | undefined,
+    limit: number | undefined,
+  ): string => {
+    if (line === undefined && limit === undefined) {
+      return content;
+    }
+    const lines = content.split(/\r?\n/);
+    const startIdx = line && line > 1 ? line - 1 : 0;
+    const endIdx =
+      limit !== undefined && limit > 0
+        ? Math.min(lines.length, startIdx + limit)
+        : lines.length;
+    return lines.slice(startIdx, endIdx).join("\n");
+  };
+
+  const handleFsReadTextFile = Effect.fn("handleFsReadTextFile")(function* (
+    context: GeminiSessionContext,
+    requestId: JsonRpcId,
+    params: unknown,
+  ) {
+    const record = asRecord(params);
+    const filePath = trimToUndefined(record?.path);
+    if (!filePath || !path.isAbsolute(filePath)) {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_INVALID_PARAMS,
+        "fs/read_text_file requires an absolute `path`.",
+      );
+      return;
+    }
+
+    const line = asNumber(record?.line) ?? undefined;
+    const limit = asNumber(record?.limit) ?? undefined;
+
+    const readResult = yield* fileSystem.readFileString(filePath).pipe(Effect.result);
+    if (readResult._tag === "Failure") {
+      const detail = toMessage(readResult.failure, `Failed to read ${filePath}`);
+      yield* sendAcpError(context, requestId, ACP_ERR_INTERNAL, detail);
+      return;
+    }
+
+    const content = applyLineRange(readResult.success, line, limit);
+    yield* sendAcpResponse(context, requestId, { content });
+  });
+
+  const handleFsWriteTextFile = Effect.fn("handleFsWriteTextFile")(function* (
+    context: GeminiSessionContext,
+    requestId: JsonRpcId,
+    params: unknown,
+  ) {
+    const record = asRecord(params);
+    const filePath = trimToUndefined(record?.path);
+    const content = typeof record?.content === "string" ? (record.content as string) : undefined;
+
+    if (!filePath || !path.isAbsolute(filePath)) {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_INVALID_PARAMS,
+        "fs/write_text_file requires an absolute `path`.",
+      );
+      return;
+    }
+    if (content === undefined) {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_INVALID_PARAMS,
+        "fs/write_text_file requires `content` (string).",
+      );
+      return;
+    }
+
+    const cwd = context.session.cwd ?? process.cwd();
+    const resolvedPath = path.resolve(filePath);
+    if (!isPathInsideCwd(resolvedPath, path.resolve(cwd))) {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_SANDBOX,
+        `Refusing to write outside the workspace (${cwd}). Path: ${resolvedPath}. Out-of-workspace writes will require approval once Phase 1b lands.`,
+      );
+      return;
+    }
+
+    const parentDir = path.dirname(resolvedPath);
+    const mkdirResult = yield* fileSystem
+      .makeDirectory(parentDir, { recursive: true })
+      .pipe(Effect.result);
+    if (mkdirResult._tag === "Failure") {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_INTERNAL,
+        toMessage(mkdirResult.failure, `Failed to create directory ${parentDir}`),
+      );
+      return;
+    }
+
+    const writeResult = yield* fileSystem
+      .writeFileString(resolvedPath, content)
+      .pipe(Effect.result);
+    if (writeResult._tag === "Failure") {
+      yield* sendAcpError(
+        context,
+        requestId,
+        ACP_ERR_INTERNAL,
+        toMessage(writeResult.failure, `Failed to write ${resolvedPath}`),
+      );
+      return;
+    }
+
+    yield* sendAcpResponse(context, requestId, {});
+  });
+
   const handleSessionUpdate = Effect.fn("handleSessionUpdate")(function* (
     context: GeminiSessionContext,
     update: unknown,
@@ -1692,6 +1853,25 @@ const makeGeminiAdapter = Effect.fn("makeGeminiAdapter")(function* (
         return;
       }
       yield* handlePermissionRequest(context, requestId as JsonRpcId, parsed.params);
+      return;
+    }
+
+    if (method === "fs/read_text_file") {
+      const requestId = parsed.id;
+      if (requestId === undefined || requestId === null) {
+        return;
+      }
+      yield* handleFsReadTextFile(context, requestId as JsonRpcId, parsed.params);
+      return;
+    }
+
+    if (method === "fs/write_text_file") {
+      const requestId = parsed.id;
+      if (requestId === undefined || requestId === null) {
+        return;
+      }
+      yield* handleFsWriteTextFile(context, requestId as JsonRpcId, parsed.params);
+      return;
     }
   });
 
@@ -1857,7 +2037,12 @@ const makeGeminiAdapter = Effect.fn("makeGeminiAdapter")(function* (
           version: "0.1.0",
         },
         clientCapabilities: {
-          fs: { readTextFile: false, writeTextFile: false },
+          // Phase 1 tool parity: enable ACP fs/* so Gemini can read and write
+          // files in the workspace. Writes are sandboxed to the session cwd;
+          // reads allow any absolute path the server can access (same policy
+          // as Claude/Codex). Terminal + auth-terminal stay disabled until
+          // Phase 2 lands. See handleFsReadTextFile/handleFsWriteTextFile.
+          fs: { readTextFile: true, writeTextFile: true },
           terminal: false,
           auth: { terminal: false },
         },
