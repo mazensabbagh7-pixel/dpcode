@@ -3,10 +3,30 @@
 // Exports: Selector factories used by routes and sidebar-heavy components.
 
 import type { ProjectId, ThreadId } from "@t3tools/contracts";
+import { normalizeWorkspaceRootForComparison } from "@t3tools/shared/threadWorkspace";
 
 import type { AppState } from "./store";
 import { getThreadFromState, getThreadsFromState } from "./threadDerivation";
 import type { Project, SidebarThreadSummary, Thread } from "./types";
+
+export interface ThreadPickerThread {
+  id: ThreadId;
+  title: string | null;
+  projectId: ProjectId;
+  modelSelection: Thread["modelSelection"];
+  createdAt: string;
+  updatedAt?: string | undefined;
+}
+
+export interface SplitWorkspaceCollision {
+  leftThreadId: ThreadId;
+  rightThreadId: ThreadId;
+  workspacePath: string;
+  leftBranch: string | null;
+  rightBranch: string | null;
+}
+
+const EMPTY_THREAD_PICKER_THREADS: readonly ThreadPickerThread[] = [];
 
 function createStableEntitySelector<T extends { id: string }>(
   selectItems: (state: AppState) => readonly T[],
@@ -95,6 +115,114 @@ export function createAllThreadsSelector(): (state: AppState) => readonly Thread
     previousThreads = getThreadsFromState(state);
     return previousThreads;
   };
+}
+
+export function createThreadPickerThreadsSelector(options?: {
+  enabled?: boolean;
+}): (state: AppState) => readonly ThreadPickerThread[] {
+  const enabled = options?.enabled ?? true;
+  let previousThreadIds: readonly ThreadId[] | undefined;
+  let previousThreadShellById = {} as AppState["threadShellById"];
+  let previousThreads: readonly ThreadPickerThread[] = EMPTY_THREAD_PICKER_THREADS;
+
+  return (state) => {
+    if (!enabled) {
+      return EMPTY_THREAD_PICKER_THREADS;
+    }
+
+    if (
+      previousThreadIds === state.threadIds &&
+      previousThreadShellById === state.threadShellById
+    ) {
+      return previousThreads;
+    }
+
+    previousThreadIds = state.threadIds;
+    previousThreadShellById = state.threadShellById;
+    previousThreads = (state.threadIds ?? []).flatMap((threadId) => {
+      const shell = state.threadShellById?.[threadId];
+      if (!shell) {
+        return [];
+      }
+      return [
+        {
+          id: shell.id,
+          title: shell.title,
+          projectId: shell.projectId,
+          modelSelection: shell.modelSelection,
+          createdAt: shell.createdAt,
+          updatedAt: shell.updatedAt,
+        },
+      ];
+    });
+    return previousThreads;
+  };
+}
+
+export function createSplitWorkspaceCollisionSelector(input: {
+  leftThreadId: ThreadId | null;
+  rightThreadId: ThreadId | null;
+}): (state: AppState) => SplitWorkspaceCollision | null {
+  let previousThreadShellById = {} as AppState["threadShellById"];
+  let previousProjects: readonly Project[] | undefined;
+  let previousCollision: SplitWorkspaceCollision | null = null;
+
+  return (state) => {
+    if (!input.leftThreadId || !input.rightThreadId) {
+      return null;
+    }
+
+    if (
+      previousThreadShellById === state.threadShellById &&
+      previousProjects === state.projects
+    ) {
+      return previousCollision;
+    }
+
+    previousThreadShellById = state.threadShellById;
+    previousProjects = state.projects;
+
+    const leftShell = state.threadShellById?.[input.leftThreadId];
+    const rightShell = state.threadShellById?.[input.rightThreadId];
+    if (!leftShell || !rightShell) {
+      previousCollision = null;
+      return previousCollision;
+    }
+
+    const leftWorkspacePath = resolveThreadWorkspacePath(state.projects, leftShell);
+    const rightWorkspacePath = resolveThreadWorkspacePath(state.projects, rightShell);
+    if (!leftWorkspacePath || !rightWorkspacePath) {
+      previousCollision = null;
+      return previousCollision;
+    }
+
+    if (
+      normalizeWorkspaceRootForComparison(leftWorkspacePath) !==
+      normalizeWorkspaceRootForComparison(rightWorkspacePath)
+    ) {
+      previousCollision = null;
+      return previousCollision;
+    }
+
+    previousCollision = {
+      leftThreadId: input.leftThreadId,
+      rightThreadId: input.rightThreadId,
+      workspacePath: leftWorkspacePath,
+      leftBranch: leftShell.branch,
+      rightBranch: rightShell.branch,
+    };
+    return previousCollision;
+  };
+}
+
+function resolveThreadWorkspacePath(
+  projects: readonly Project[],
+  thread: Pick<Thread, "projectId" | "worktreePath">,
+): string | null {
+  if (thread.worktreePath) {
+    return thread.worktreePath;
+  }
+  return projects.find((project) => project.id === thread.projectId)?.cwd ?? null;
 }
 
 export function createThreadProjectIdSelector(

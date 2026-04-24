@@ -29,6 +29,28 @@ const approvalRequiredTurnOverrides = {
   sandboxPolicy: { type: "readOnly" },
 } as const;
 
+async function waitForExpectation(
+  assertion: () => void | Promise<void>,
+  options: { timeout?: number; interval?: number } = {},
+) {
+  const timeout = options.timeout ?? 5_000;
+  const interval = options.interval ?? 10;
+  const deadline = Date.now() + timeout;
+  let lastError: unknown;
+
+  while (Date.now() < deadline) {
+    try {
+      await assertion();
+      return;
+    } catch (error) {
+      lastError = error;
+      await new Promise((resolve) => setTimeout(resolve, interval));
+    }
+  }
+
+  throw lastError ?? new Error("Timed out waiting for expectation.");
+}
+
 function createSendTurnHarness(runtimeMode: "approval-required" | "full-access" = "full-access") {
   const manager = new CodexAppServerManager();
   const context = {
@@ -1745,7 +1767,7 @@ describe("thread checkpoint control", () => {
 
     const compactPromise = manager.compactThread(asThreadId("thread_1"));
 
-    await vi.waitFor(() => {
+    await waitForExpectation(() => {
       expect(sendRequest).toHaveBeenCalledWith(context, "thread/compact/start", {
         threadId: "thread_1",
       });
@@ -2314,7 +2336,7 @@ describe.skipIf(!process.env.CODEX_BINARY_PATH)("startSession live Codex resume"
 
       expect(firstTurn.threadId).toBe(firstSession.threadId);
 
-      await vi.waitFor(
+      await waitForExpectation(
         async () => {
           const snapshot = await manager.readThread(firstSession.threadId);
           expect(snapshot.turns.length).toBeGreaterThan(0);
@@ -2353,7 +2375,7 @@ describe.skipIf(!process.env.CODEX_BINARY_PATH)("startSession live Codex resume"
         input: `Reply with exactly the word BETA ${randomUUID()}`,
       });
 
-      await vi.waitFor(
+      await waitForExpectation(
         async () => {
           const snapshot = await manager.readThread(resumedSession.threadId);
           expect(snapshot.turns.length).toBeGreaterThan(originalTurnCount);

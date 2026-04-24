@@ -1,5 +1,6 @@
+import assert from "node:assert/strict";
 import * as NodeServices from "@effect/platform-node/NodeServices";
-import { describe, it, assert } from "@effect/vitest";
+import { describe, it } from "@effect/vitest";
 import { Effect, FileSystem, Layer, Path, Sink, Stream } from "effect";
 import * as PlatformError from "effect/PlatformError";
 import { ChildProcessSpawner } from "effect/unstable/process";
@@ -341,6 +342,32 @@ it.layer(NodeServices.layer)("ProviderHealth", (it) => {
       });
       assert.strictEqual(parsed.status, "warning");
       assert.strictEqual(parsed.authStatus, "unknown");
+    });
+
+    it("plain text ChatGPT login is authenticated with voice support", () => {
+      const parsed = parseAuthStatusFromOutput({
+        stdout: "Logged in using ChatGPT\n",
+        stderr: "",
+        code: 0,
+      });
+      assert.strictEqual(parsed.status, "ready");
+      assert.strictEqual(parsed.authStatus, "authenticated");
+      assert.strictEqual(parsed.authType, "chatgpt");
+      assert.strictEqual(parsed.authLabel, "ChatGPT Subscription");
+      assert.strictEqual(parsed.voiceTranscriptionAvailable, true);
+    });
+
+    it("plain text API key login is authenticated without voice support", () => {
+      const parsed = parseAuthStatusFromOutput({
+        stdout: "Logged in using API key\n",
+        stderr: "",
+        code: 0,
+      });
+      assert.strictEqual(parsed.status, "ready");
+      assert.strictEqual(parsed.authStatus, "authenticated");
+      assert.strictEqual(parsed.authType, "apiKey");
+      assert.strictEqual(parsed.authLabel, "OpenAI API Key");
+      assert.strictEqual(parsed.voiceTranscriptionAvailable, false);
     });
   });
 

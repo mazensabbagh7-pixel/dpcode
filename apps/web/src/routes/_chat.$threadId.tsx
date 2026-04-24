@@ -57,7 +57,8 @@ import {
 import { selectSingleChatPanelState, useSingleChatPanelStore } from "../singleChatPanelStore";
 import { useStore } from "../store";
 import {
-  createAllThreadsSelector,
+  createSplitWorkspaceCollisionSelector,
+  createThreadPickerThreadsSelector,
   createThreadExistsSelector,
   createThreadProjectIdSelector,
 } from "../storeSelectors";
@@ -78,6 +79,7 @@ import {
   resolveToggledChatPanelPatch,
 } from "./-chatThreadRoute.logic";
 import { getLocalStorageItem, setLocalStorageItem } from "~/hooks/useLocalStorage";
+import { TriangleAlertIcon } from "~/lib/icons";
 import { cn } from "~/lib/utils";
 import { Sidebar, SidebarInset, SidebarProvider, SidebarRail } from "~/components/ui/sidebar";
 
@@ -624,8 +626,6 @@ function SplitPaneSurface(props: {
 function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: ThreadIdType }) {
   const navigate = useNavigate();
   const { handleNewChat } = useHandleNewChat();
-  const selectAllThreads = useMemo(() => createAllThreadsSelector(), []);
-  const threads = useStore(selectAllThreads);
   const projects = useStore((store) => store.projects);
   const splitView = useSplitViewStore(selectSplitView(props.splitViewId));
   const setFocusedPane = useSplitViewStore((store) => store.setFocusedPane);
@@ -643,6 +643,24 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
     splitView,
     routeThreadId: props.routeThreadId,
   });
+  const threadPickerEnabled =
+    threadPickerPane !== null ||
+    activeSplitView?.leftThreadId === null ||
+    activeSplitView?.rightThreadId === null;
+  const selectThreadPickerThreads = useMemo(
+    () => createThreadPickerThreadsSelector({ enabled: threadPickerEnabled }),
+    [threadPickerEnabled],
+  );
+  const threads = useStore(selectThreadPickerThreads);
+  const selectWorkspaceCollision = useMemo(
+    () =>
+      createSplitWorkspaceCollisionSelector({
+        leftThreadId: activeSplitView?.leftThreadId ?? null,
+        rightThreadId: activeSplitView?.rightThreadId ?? null,
+      }),
+    [activeSplitView?.leftThreadId, activeSplitView?.rightThreadId],
+  );
+  const workspaceCollision = useStore(selectWorkspaceCollision);
 
   useEffect(() => {
     if (!activeSplitView) {
@@ -850,16 +868,22 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
     };
   }, [activeSplitView?.id, setRatio]);
 
+  const selectableThreads = useMemo(
+    () =>
+      threads.toSorted(
+        (left, right) =>
+          Date.parse(right.updatedAt ?? right.createdAt) -
+          Date.parse(left.updatedAt ?? left.createdAt),
+      ),
+    [threads],
+  );
+
   if (!activeSplitView) {
     return null;
   }
 
   const leftBasis = `${activeSplitView.ratio * 100}%`;
   const rightBasis = `${(1 - activeSplitView.ratio) * 100}%`;
-  const selectableThreads = threads.toSorted(
-    (left, right) =>
-      Date.parse(right.updatedAt ?? right.createdAt) - Date.parse(left.updatedAt ?? left.createdAt),
-  );
   const chooseThreadForPane = (threadId: ThreadIdType, paneOverride?: SplitViewPane) => {
     const pane = paneOverride ?? threadPickerPane;
     if (!pane) {
@@ -902,8 +926,27 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
     <>
       <div
         ref={rootRef}
-        className="flex h-dvh min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
+        className="relative flex h-dvh min-h-0 min-w-0 flex-1 overflow-hidden bg-background"
       >
+        {workspaceCollision ? (
+          <div className="pointer-events-none absolute inset-x-0 top-2 z-30 flex justify-center px-3">
+            <div
+              role="alert"
+              className="pointer-events-auto flex max-w-[min(44rem,calc(100vw-2rem))] items-center gap-2 rounded-lg border border-warning/40 bg-background/95 px-3 py-2 text-xs text-foreground shadow-sm backdrop-blur"
+            >
+              <TriangleAlertIcon className="size-4 shrink-0 text-warning" />
+              <span className="min-w-0 truncate">
+                Both panes share{" "}
+                <span className="font-medium">{workspaceCollision.workspacePath}</span>
+                {workspaceCollision.leftBranch === workspaceCollision.rightBranch &&
+                workspaceCollision.leftBranch
+                  ? ` on ${workspaceCollision.leftBranch}`
+                  : ""}
+                . Use separate worktrees before parallel edits.
+              </span>
+            </div>
+          </div>
+        ) : null}
         <div
           className="flex min-h-0 min-w-0"
           style={{ flexBasis: leftBasis, flexGrow: 0, flexShrink: 1 }}

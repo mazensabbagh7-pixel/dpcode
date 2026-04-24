@@ -152,6 +152,45 @@ function resolveVoiceTranscriptionAvailability(
   return authMethod === "chatgpt" || authMethod === "chatgptAuthTokens";
 }
 
+function normalizeCodexAuthMethod(authMethod: string | undefined): string | undefined {
+  const normalized = authMethod?.toLowerCase().replace(/[\s_-]+/g, "");
+  if (!normalized) return undefined;
+  switch (normalized) {
+    case "apikey":
+      return "apiKey";
+    case "chatgpt":
+    case "chatgptauthtokens":
+      return "chatgpt";
+    default:
+      return undefined;
+  }
+}
+
+function codexAuthMetadataFromMethod(
+  authMethod: string | undefined,
+): {
+  readonly type: string;
+  readonly label: string;
+  readonly voiceTranscriptionAvailable?: boolean;
+} | undefined {
+  const normalized = normalizeCodexAuthMethod(authMethod);
+  if (!normalized) return undefined;
+  if (normalized === "apiKey") {
+    return { type: "apiKey", label: "OpenAI API Key", voiceTranscriptionAvailable: false };
+  }
+  return {
+    type: "chatgpt",
+    label: "ChatGPT Subscription",
+    voiceTranscriptionAvailable: true,
+  };
+}
+
+function extractCodexPlaintextAuthMethod(output: string): string | undefined {
+  const match = output.match(/logged in using ([^\n.]+)/i);
+  if (!match) return undefined;
+  return match[1]?.trim();
+}
+
 // ── Subscription type detection ─────────────────────────────────────
 //
 // Walks arbitrary JSON output from `<provider> auth status` looking for a
@@ -412,10 +451,13 @@ const probeClaudeSubscription = () => {
 export function parseAuthStatusFromOutput(result: CommandResult): {
   readonly status: ServerProviderStatusState;
   readonly authStatus: ServerProviderAuthStatus;
+  readonly authType?: string;
+  readonly authLabel?: string;
   readonly voiceTranscriptionAvailable?: boolean;
   readonly message?: string;
 } {
-  const lowerOutput = `${result.stdout}\n${result.stderr}`.toLowerCase();
+  const combinedOutput = `${result.stdout}\n${result.stderr}`;
+  const lowerOutput = combinedOutput.toLowerCase();
 
   if (
     lowerOutput.includes("unknown command") ||
@@ -469,12 +511,14 @@ export function parseAuthStatusFromOutput(result: CommandResult): {
   })();
 
   if (parsedAuth.auth === true) {
-    const voiceTranscriptionAvailable = resolveVoiceTranscriptionAvailability(
-      parsedAuth.authMethod,
-    );
+    const authMetadata = codexAuthMetadataFromMethod(parsedAuth.authMethod);
+    const voiceTranscriptionAvailable =
+      authMetadata?.voiceTranscriptionAvailable ??
+      resolveVoiceTranscriptionAvailability(parsedAuth.authMethod);
     return {
       status: "ready",
       authStatus: "authenticated",
+      ...(authMetadata ? { authType: authMetadata.type, authLabel: authMetadata.label } : {}),
       ...(voiceTranscriptionAvailable !== undefined ? { voiceTranscriptionAvailable } : {}),
     };
   }
@@ -491,6 +535,18 @@ export function parseAuthStatusFromOutput(result: CommandResult): {
       authStatus: "unknown",
       message:
         "Could not verify Codex authentication status from JSON output (missing auth marker).",
+    };
+  }
+  const plaintextAuthMethod = extractCodexPlaintextAuthMethod(combinedOutput);
+  if (plaintextAuthMethod) {
+    const authMetadata = codexAuthMetadataFromMethod(plaintextAuthMethod);
+    return {
+      status: "ready",
+      authStatus: "authenticated",
+      ...(authMetadata ? { authType: authMetadata.type, authLabel: authMetadata.label } : {}),
+      ...(authMetadata?.voiceTranscriptionAvailable !== undefined
+        ? { voiceTranscriptionAvailable: authMetadata.voiceTranscriptionAvailable }
+        : {}),
     };
   }
   if (result.code === 0) {
@@ -789,13 +845,14 @@ export const checkCodexProviderStatus: Effect.Effect<
   const codexAccountType = extractCodexAccountTypeFromOutput(authOutput);
   const codexLabel =
     parsed.authStatus === "authenticated"
-      ? codexAccountAuthLabel({ type: codexAccountType, planType: codexPlanType })
+      ? codexAccountAuthLabel({ type: codexAccountType, planType: codexPlanType }) ??
+        parsed.authLabel
       : undefined;
   const codexAuthType =
     parsed.authStatus === "authenticated"
       ? codexAccountType === "apiKey"
         ? "apiKey"
-        : codexPlanType
+        : codexPlanType ?? parsed.authType
       : undefined;
 
   return {
