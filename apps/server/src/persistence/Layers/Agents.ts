@@ -47,6 +47,7 @@ const makeAgentRepository = Effect.gen(function* () {
       sql`
         INSERT INTO agent_definitions (
           id,
+          project_id,
           name,
           description,
           provider,
@@ -64,6 +65,7 @@ const makeAgentRepository = Effect.gen(function* () {
         )
         VALUES (
           ${row.id},
+          ${row.projectId},
           ${row.name},
           ${row.description ?? null},
           ${row.provider},
@@ -81,6 +83,7 @@ const makeAgentRepository = Effect.gen(function* () {
         )
         ON CONFLICT (id)
         DO UPDATE SET
+          project_id = excluded.project_id,
           name = excluded.name,
           description = excluded.description,
           provider = excluded.provider,
@@ -105,6 +108,7 @@ const makeAgentRepository = Effect.gen(function* () {
       sql`
         SELECT
           id,
+          project_id AS "projectId",
           name,
           description,
           provider,
@@ -131,6 +135,7 @@ const makeAgentRepository = Effect.gen(function* () {
       sql`
         SELECT
           id,
+          project_id AS "projectId",
           name,
           description,
           provider,

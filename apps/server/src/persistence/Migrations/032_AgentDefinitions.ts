@@ -7,6 +7,7 @@ export default Effect.gen(function* () {
   yield* sql`
     CREATE TABLE IF NOT EXISTS agent_definitions (
       id              TEXT PRIMARY KEY,
+      project_id      TEXT NOT NULL DEFAULT '',
       name            TEXT NOT NULL,
       description     TEXT,
       provider        TEXT NOT NULL,
@@ -32,5 +33,10 @@ export default Effect.gen(function* () {
   yield* sql`
     CREATE INDEX IF NOT EXISTS idx_agent_definitions_enabled_schedule
     ON agent_definitions(enabled, schedule)
+  `;
+
+  yield* sql`
+    CREATE INDEX IF NOT EXISTS idx_agent_definitions_project_id
+    ON agent_definitions(project_id)
   `;
 });

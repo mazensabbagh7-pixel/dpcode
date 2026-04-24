@@ -2184,6 +2184,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const now = Date.now();
         const row = {
           id: crypto.randomUUID(),
+          projectId: body.projectId,
           name: body.name,
           description: body.description,
           provider: body.provider,
@@ -2213,6 +2214,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const existing = existingOption.value;
         const updated = {
           ...existing,
+          ...(body.projectId !== undefined ? { projectId: body.projectId } : {}),
           ...(body.name !== undefined ? { name: body.name } : {}),
           ...(body.description !== undefined ? { description: body.description } : {}),
           ...(body.provider !== undefined ? { provider: body.provider } : {}),
@@ -2237,9 +2239,87 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       }
 
       case WS_METHODS.agentsRunNow: {
-        return yield* new RouteRequestError({
-          message: "agents.runNow is not yet implemented.",
+        const body = stripRequestTag(request.body);
+        const agentOption = yield* agentRepository.getById({ id: body.agentId });
+        if (Option.isNone(agentOption)) {
+          return yield* new RouteRequestError({
+            message: `Agent '${body.agentId}' not found.`,
+          });
+        }
+        const agent = agentOption.value;
+        if (!agent.enabled) {
+          return yield* new RouteRequestError({
+            message: `Agent '${agent.name}' is disabled.`,
+          });
+        }
+        if (!agent.projectId || agent.projectId.length === 0) {
+          return yield* new RouteRequestError({
+            message: `Agent '${agent.name}' has no project. Edit the agent and select a project before running it.`,
+          });
+        }
+
+        const variables = body.variables ?? {};
+        const renderedTask = agent.taskTemplate.replace(
+          /\{\{\s*(\w+)\s*\}\}/g,
+          (_match, key: string) => (key in variables ? variables[key] ?? "" : ""),
+        );
+
+        const now = Date.now();
+        const createdAt = new Date(now).toISOString();
+        const threadId = ThreadId.makeUnsafe(crypto.randomUUID());
+        const runId = crypto.randomUUID();
+        const messageId = MessageId.makeUnsafe(crypto.randomUUID());
+        const titleStamp = new Date(now).toISOString().slice(0, 16).replace("T", " ");
+        const title = `${agent.name} — ${titleStamp}`;
+
+        yield* orchestrationEngine.dispatch({
+          type: "thread.create",
+          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          threadId,
+          projectId: ProjectId.makeUnsafe(agent.projectId),
+          title,
+          modelSelection: agent.modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          envMode: agent.envMode,
+          branch: null,
+          worktreePath: null,
+          createdAt,
         });
+
+        yield* orchestrationEngine.dispatch({
+          type: "thread.turn.start",
+          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+          threadId,
+          message: {
+            messageId,
+            role: "user",
+            text: renderedTask,
+            attachments: [],
+          },
+          modelSelection: agent.modelSelection,
+          runtimeMode: "full-access",
+          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+          createdAt,
+        });
+
+        yield* agentRepository.upsertRun({
+          id: runId,
+          agentId: agent.id,
+          threadId,
+          trigger: "manual",
+          status: "running",
+          startedAt: now,
+          renderedTask,
+        });
+
+        yield* agentRepository.upsert({
+          ...agent,
+          lastRunAt: now,
+          updatedAt: now,
+        });
+
+        return { runId, threadId };
       }
 
       case WS_METHODS.agentsListRuns: {

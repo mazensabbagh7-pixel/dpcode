@@ -7,7 +7,7 @@
  */
 
 import { Schema } from "effect";
-import { TrimmedNonEmptyString } from "./baseSchemas";
+import { ProjectId, TrimmedNonEmptyString } from "./baseSchemas";
 import { ModelSelection, ProviderKind, ThreadEnvironmentMode } from "./orchestration";
 
 export const AgentRunTrigger = Schema.Literals(["manual", "scheduled"]);
@@ -27,6 +27,8 @@ export type AgentRunStatus = typeof AgentRunStatus.Type;
  */
 export const AgentDefinition = Schema.Struct({
   id: TrimmedNonEmptyString,
+  /** Project the agent runs against. Required — threads are always project-scoped. */
+  projectId: ProjectId,
   name: TrimmedNonEmptyString,
   description: Schema.optional(Schema.NullOr(Schema.String)),
   provider: ProviderKind,
@@ -70,6 +72,7 @@ export type AgentRun = typeof AgentRun.Type;
 /* ---------- WS command payloads ---------- */
 
 export const AgentCreateInput = Schema.Struct({
+  projectId: ProjectId,
   name: TrimmedNonEmptyString,
   description: Schema.optional(Schema.String),
   provider: ProviderKind,
@@ -86,16 +89,18 @@ export type AgentCreateInput = typeof AgentCreateInput.Type;
 
 export const AgentUpdateInput = Schema.Struct({
   id: TrimmedNonEmptyString,
+  projectId: Schema.optional(ProjectId),
   name: Schema.optional(TrimmedNonEmptyString),
-  description: Schema.optional(Schema.String),
+  // Nullable fields accept `null` to clear them explicitly. `undefined` means "don't change".
+  description: Schema.optional(Schema.NullOr(Schema.String)),
   provider: Schema.optional(ProviderKind),
   modelSelection: Schema.optional(ModelSelection),
-  systemPrompt: Schema.optional(Schema.String),
+  systemPrompt: Schema.optional(Schema.NullOr(Schema.String)),
   taskTemplate: Schema.optional(TrimmedNonEmptyString),
   toolAllowlist: Schema.optional(Schema.Array(Schema.String)),
-  cwd: Schema.optional(TrimmedNonEmptyString),
+  cwd: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   envMode: Schema.optional(ThreadEnvironmentMode),
-  schedule: Schema.optional(TrimmedNonEmptyString),
+  schedule: Schema.optional(Schema.NullOr(TrimmedNonEmptyString)),
   enabled: Schema.optional(Schema.Boolean),
 });
 export type AgentUpdateInput = typeof AgentUpdateInput.Type;

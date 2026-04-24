@@ -4,6 +4,7 @@
 
 import {
   ArrowLeftIcon,
+  BotIcon,
   ChevronDownIcon,
   ChevronRightIcon,
   FolderIcon,
@@ -1072,6 +1073,7 @@ export default function Sidebar() {
   const navigate = useNavigate();
   const pathname = useLocation({ select: (loc) => loc.pathname });
   const isOnSettings = useLocation({ select: (loc) => loc.pathname === "/settings" });
+  const isOnAgents = useLocation({ select: (loc) => loc.pathname === "/agents" });
   const isOnWorkspace = pathname.startsWith("/workspace");
   const { settings: appSettings, updateSettings } = useAppSettings();
   const { handleNewThread } = useHandleNewThread();
@@ -5742,6 +5744,18 @@ export default function Sidebar() {
           </div>
         ) : null}
         <SidebarMenu>
+          {!isOnAgents && !isOnSettings ? (
+            <SidebarMenuItem>
+              <SidebarMenuButton
+                size="default"
+                className="h-8 flex-1 gap-2.5 rounded-lg px-2 text-[length:var(--app-font-size-ui,12px)] font-normal text-muted-foreground/72 hover:bg-[var(--sidebar-accent)]"
+                onClick={() => void navigate({ to: "/agents" })}
+              >
+                <BotIcon className="size-[15px]" />
+                <span>Agents</span>
+              </SidebarMenuButton>
+            </SidebarMenuItem>
+          ) : null}
           <SidebarMenuItem>
             <div className="flex items-center gap-2">
               {!isOnSettings && (

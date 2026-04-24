@@ -6,6 +6,7 @@
 import {
   DEFAULT_MODEL_BY_PROVIDER,
   PROVIDER_DISPLAY_NAMES,
+  ProjectId,
   type AgentDefinition,
   type ModelSelection,
   type ProviderKind,
@@ -13,6 +14,7 @@ import {
 } from "@t3tools/contracts";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useMemo, useState } from "react";
+import { useStore } from "~/store";
 import {
   agentCreateMutationOptions,
   agentDeleteMutationOptions,
@@ -47,6 +49,7 @@ const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = [
 const ENV_MODES: ReadonlyArray<ThreadEnvironmentMode> = ["local", "worktree"];
 
 type DraftAgent = {
+  projectId: string;
   name: string;
   description: string;
   provider: ProviderKind;
@@ -60,6 +63,7 @@ type DraftAgent = {
 };
 
 const emptyDraft: DraftAgent = {
+  projectId: "",
   name: "",
   description: "",
   provider: "claudeAgent",
@@ -74,6 +78,7 @@ const emptyDraft: DraftAgent = {
 
 function agentToDraft(agent: AgentDefinition): DraftAgent {
   return {
+    projectId: agent.projectId,
     name: agent.name,
     description: agent.description ?? "",
     provider: agent.provider,
@@ -101,6 +106,7 @@ function parseToolAllowlist(input: string): ReadonlyArray<string> {
 export function AgentLibrary() {
   const queryClient = useQueryClient();
   const agentsQuery = useQuery(agentsListQueryOptions());
+  const projects = useStore((state) => state.projects);
   const [selectedAgentId, setSelectedAgentId] = useState<string | null>(null);
   const [draft, setDraft] = useState<DraftAgent | null>(null);
   const [isCreating, setIsCreating] = useState(false);
@@ -179,6 +185,10 @@ export function AgentLibrary() {
       toastManager.add({ type: "error", title: "Name is required" });
       return;
     }
+    if (!draft.projectId) {
+      toastManager.add({ type: "error", title: "Project is required" });
+      return;
+    }
     if (!draft.taskTemplate.trim()) {
       toastManager.add({ type: "error", title: "Task template is required" });
       return;
@@ -186,9 +196,11 @@ export function AgentLibrary() {
 
     const modelSelection = buildModelSelection(draft.provider, draft.model.trim());
     const toolAllowlist = parseToolAllowlist(draft.toolAllowlist);
+    const projectId = ProjectId.makeUnsafe(draft.projectId);
 
     if (isCreating) {
       createMutation.mutate({
+        projectId,
         name: draft.name.trim(),
         ...(draft.description ? { description: draft.description } : {}),
         provider: draft.provider,
@@ -203,14 +215,15 @@ export function AgentLibrary() {
     } else if (selectedAgent) {
       updateMutation.mutate({
         id: selectedAgent.id,
+        projectId,
         name: draft.name.trim(),
-        ...(draft.description ? { description: draft.description } : {}),
+        description: draft.description.trim() || null,
         provider: draft.provider,
         modelSelection,
-        ...(draft.systemPrompt ? { systemPrompt: draft.systemPrompt } : {}),
+        systemPrompt: draft.systemPrompt || null,
         taskTemplate: draft.taskTemplate,
         toolAllowlist,
-        ...(draft.cwd ? { cwd: draft.cwd } : {}),
+        cwd: draft.cwd.trim() || null,
         envMode: draft.envMode,
         enabled: draft.enabled,
       });
@@ -282,6 +295,7 @@ export function AgentLibrary() {
             ) : (
               <AgentEditor
                 draft={draft}
+                projects={projects}
                 onChange={(next) => setDraft(next)}
                 onSave={saveDraft}
                 saving={createMutation.isPending || updateMutation.isPending}
@@ -302,6 +316,7 @@ export function AgentLibrary() {
 
 function AgentEditor({
   draft,
+  projects,
   onChange,
   onSave,
   saving,
@@ -311,6 +326,7 @@ function AgentEditor({
   running,
 }: {
   draft: DraftAgent;
+  projects: ReadonlyArray<{ id: string; name: string }>;
   onChange: (next: DraftAgent) => void;
   onSave: () => void;
   saving: boolean;
@@ -342,6 +358,27 @@ function AgentEditor({
           onChange={(e) => update("description", e.target.value)}
           placeholder="Optional — one line describing what this agent does"
         />
+      </Field>
+
+      <Field label="Project" hint="The project this agent runs against.">
+        {projects.length === 0 ? (
+          <div className="text-xs text-muted-foreground">
+            No projects yet. Add a project to your sidebar first.
+          </div>
+        ) : (
+          <Select value={draft.projectId} onValueChange={(v) => update("projectId", v ?? "")}>
+            <SelectTrigger>
+              <SelectValue placeholder="Select a project…" />
+            </SelectTrigger>
+            <SelectPopup>
+              {projects.map((project) => (
+                <SelectItem key={project.id} value={project.id}>
+                  {project.name}
+                </SelectItem>
+              ))}
+            </SelectPopup>
+          </Select>
+        )}
       </Field>
 
       <div className="grid grid-cols-2 gap-4">
