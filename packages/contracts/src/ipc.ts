@@ -76,6 +76,16 @@ import type {
 import { EditorId } from "./editor";
 import type { ThreadId } from "./baseSchemas";
 import type {
+  AgentCreateInput,
+  AgentDefinition,
+  AgentDeleteInput,
+  AgentListRunsInput,
+  AgentRun,
+  AgentRunNowInput,
+  AgentRunNowResult,
+  AgentUpdateInput,
+} from "./agents";
+import type {
   ProviderComposerCapabilities,
   ProviderGetComposerCapabilitiesInput,
   ProviderListAgentsInput,
@@ -374,6 +384,14 @@ export interface NativeApi {
     onDomainEvent: (callback: (event: OrchestrationEvent) => void) => () => void;
     onShellEvent: (callback: (event: OrchestrationShellStreamItem) => void) => () => void;
     onThreadEvent: (callback: (event: OrchestrationThreadStreamItem) => void) => () => void;
+  };
+  agents: {
+    list: () => Promise<ReadonlyArray<AgentDefinition>>;
+    create: (input: AgentCreateInput) => Promise<AgentDefinition>;
+    update: (input: AgentUpdateInput) => Promise<AgentDefinition>;
+    delete: (input: AgentDeleteInput) => Promise<{ id: string }>;
+    runNow: (input: AgentRunNowInput) => Promise<AgentRunNowResult>;
+    listRuns: (input: AgentListRunsInput) => Promise<ReadonlyArray<AgentRun>>;
   };
   browser: {
     open: (input: BrowserOpenInput) => Promise<ThreadBrowserState>;

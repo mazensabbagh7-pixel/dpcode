@@ -407,6 +407,14 @@ export function createWsNativeApi(): NativeApi {
       listModels: (input) => transport.request(WS_METHODS.providerListModels, input),
       listAgents: (input) => transport.request(WS_METHODS.providerListAgents, input),
     },
+    agents: {
+      list: () => transport.request(WS_METHODS.agentsList, {}),
+      create: (input) => transport.request(WS_METHODS.agentsCreate, input),
+      update: (input) => transport.request(WS_METHODS.agentsUpdate, input),
+      delete: (input) => transport.request(WS_METHODS.agentsDelete, input),
+      runNow: (input) => transport.request(WS_METHODS.agentsRunNow, input),
+      listRuns: (input) => transport.request(WS_METHODS.agentsListRuns, input),
+    },
     orchestration: {
       getSnapshot: () => transport.request(ORCHESTRATION_WS_METHODS.getSnapshot),
       dispatchCommand: (command) =>
