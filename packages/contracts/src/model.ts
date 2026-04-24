@@ -180,8 +180,8 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
         supportsThinkingToggle: false,
         promptInjectedEffortLevels: ["ultrathink"],
         contextWindowOptions: [
-          { value: "200k", label: "200k", isDefault: true },
-          { value: "1m", label: "1M" },
+          { value: "200k", label: "200k" },
+          { value: "1m", label: "1M", isDefault: true },
         ],
       },
     },
@@ -200,8 +200,8 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
         supportsThinkingToggle: false,
         promptInjectedEffortLevels: ["ultrathink"],
         contextWindowOptions: [
-          { value: "200k", label: "200k", isDefault: true },
-          { value: "1m", label: "1M" },
+          { value: "200k", label: "200k" },
+          { value: "1m", label: "1M", isDefault: true },
         ],
       },
     },
@@ -218,8 +218,8 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
         supportsThinkingToggle: false,
         promptInjectedEffortLevels: [],
         contextWindowOptions: [
-          { value: "200k", label: "200k", isDefault: true },
-          { value: "1m", label: "1M" },
+          { value: "200k", label: "200k" },
+          { value: "1m", label: "1M", isDefault: true },
         ],
       },
     },
@@ -238,8 +238,8 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
         supportsThinkingToggle: false,
         promptInjectedEffortLevels: ["ultrathink"],
         contextWindowOptions: [
-          { value: "200k", label: "200k", isDefault: true },
-          { value: "1m", label: "1M" },
+          { value: "200k", label: "200k" },
+          { value: "1m", label: "1M", isDefault: true },
         ],
       },
     },

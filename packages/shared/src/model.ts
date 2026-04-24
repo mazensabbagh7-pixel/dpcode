@@ -419,7 +419,12 @@ export function resolveApiModelId(modelSelection: ModelSelection): string {
   switch (modelSelection.provider) {
     case "claudeAgent": {
       const caps = getModelCapabilities(modelSelection.provider, modelSelection.model);
-      return modelSelection.options?.contextWindow === "1m" && hasContextWindowOption(caps, "1m")
+      // Fall back to the capability default so that omitting contextWindow
+      // still picks 1M on models where 1M is now the default. Without this
+      // fallback, the Claude CLI sees a bare model ID and silently caps at
+      // 200K regardless of the `isDefault` flag we set in the model table.
+      const selected = modelSelection.options?.contextWindow ?? getDefaultContextWindow(caps);
+      return selected === "1m" && hasContextWindowOption(caps, "1m")
         ? `${modelSelection.model}[1m]`
         : modelSelection.model;
     }

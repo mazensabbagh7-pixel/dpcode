@@ -3132,8 +3132,15 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
         const modelSelection =
           input.modelSelection?.provider === "claudeAgent" ? input.modelSelection : undefined;
         const requestedEffort = trimOrNull(modelSelection?.options?.effort ?? null);
-        const requestedContextWindow = trimOrNull(modelSelection?.options?.contextWindow ?? null);
         const caps = getModelCapabilities("claudeAgent", modelSelection?.model);
+        // Resolve the context window for this session. Fall back to the
+        // capability default (currently "1m" for Opus/Sonnet) when the UI
+        // omits an explicit selection, so the `session.configured` activity
+        // and the resulting meter both report the real window — not
+        // whatever the SDK echoes back after the first response.
+        const requestedContextWindow =
+          trimOrNull(modelSelection?.options?.contextWindow ?? null) ??
+          getDefaultContextWindow(caps);
         const apiModelId = modelSelection ? resolveApiModelId(modelSelection) : undefined;
         const effort =
           requestedEffort && hasEffortLevel(caps, requestedEffort) ? requestedEffort : null;
