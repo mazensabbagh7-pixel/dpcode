@@ -74,6 +74,7 @@ import {
 import { OrchestrationEngineService } from "./orchestration/Services/OrchestrationEngine";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
 import { OrchestrationReactor } from "./orchestration/Services/OrchestrationReactor";
+import { AgentRepository } from "./persistence/Services/Agents";
 import { ProviderService } from "./provider/Services/ProviderService";
 import { ProviderDiscoveryService } from "./provider/Services/ProviderDiscoveryService";
 import { ProviderAdapterRegistry } from "./provider/Services/ProviderAdapterRegistry";
@@ -576,7 +577,8 @@ export type ServerCoreRuntimeServices =
   | ProviderService
   | ProviderDiscoveryService
   | ProviderAdapterRegistry
-  | ProviderHealth;
+  | ProviderHealth
+  | AgentRepository;
 
 export type ServerRuntimeServices =
   | ServerCoreRuntimeServices
@@ -1191,6 +1193,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
   const projectionReadModelQuery = yield* ProjectionSnapshotQuery;
   const checkpointDiffQuery = yield* CheckpointDiffQuery;
   const orchestrationReactor = yield* OrchestrationReactor;
+  const agentRepository = yield* AgentRepository;
   const { openInEditor } = yield* Open;
 
   const subscriptionsScope = yield* Scope.make("sequential");
@@ -2170,6 +2173,81 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
       case WS_METHODS.providerListAgents: {
         const body = stripRequestTag(request.body);
         return yield* providerDiscoveryService.listAgents(body);
+      }
+
+      case WS_METHODS.agentsList: {
+        return yield* agentRepository.listAll();
+      }
+
+      case WS_METHODS.agentsCreate: {
+        const body = stripRequestTag(request.body);
+        const now = Date.now();
+        const row = {
+          id: crypto.randomUUID(),
+          name: body.name,
+          description: body.description,
+          provider: body.provider,
+          modelSelection: body.modelSelection,
+          systemPrompt: body.systemPrompt,
+          taskTemplate: body.taskTemplate,
+          toolAllowlist: body.toolAllowlist,
+          cwd: body.cwd,
+          envMode: body.envMode,
+          schedule: body.schedule,
+          enabled: body.enabled,
+          createdAt: now,
+          updatedAt: now,
+        } as const;
+        yield* agentRepository.upsert(row);
+        return row;
+      }
+
+      case WS_METHODS.agentsUpdate: {
+        const body = stripRequestTag(request.body);
+        const existingOption = yield* agentRepository.getById({ id: body.id });
+        if (Option.isNone(existingOption)) {
+          return yield* new RouteRequestError({
+            message: `Agent '${body.id}' not found.`,
+          });
+        }
+        const existing = existingOption.value;
+        const updated = {
+          ...existing,
+          ...(body.name !== undefined ? { name: body.name } : {}),
+          ...(body.description !== undefined ? { description: body.description } : {}),
+          ...(body.provider !== undefined ? { provider: body.provider } : {}),
+          ...(body.modelSelection !== undefined ? { modelSelection: body.modelSelection } : {}),
+          ...(body.systemPrompt !== undefined ? { systemPrompt: body.systemPrompt } : {}),
+          ...(body.taskTemplate !== undefined ? { taskTemplate: body.taskTemplate } : {}),
+          ...(body.toolAllowlist !== undefined ? { toolAllowlist: body.toolAllowlist } : {}),
+          ...(body.cwd !== undefined ? { cwd: body.cwd } : {}),
+          ...(body.envMode !== undefined ? { envMode: body.envMode } : {}),
+          ...(body.schedule !== undefined ? { schedule: body.schedule } : {}),
+          ...(body.enabled !== undefined ? { enabled: body.enabled } : {}),
+          updatedAt: Date.now(),
+        };
+        yield* agentRepository.upsert(updated);
+        return updated;
+      }
+
+      case WS_METHODS.agentsDelete: {
+        const body = stripRequestTag(request.body);
+        yield* agentRepository.deleteById({ id: body.id });
+        return { id: body.id };
+      }
+
+      case WS_METHODS.agentsRunNow: {
+        return yield* new RouteRequestError({
+          message: "agents.runNow is not yet implemented.",
+        });
+      }
+
+      case WS_METHODS.agentsListRuns: {
+        const body = stripRequestTag(request.body);
+        return yield* agentRepository.listRunsForAgent({
+          agentId: body.agentId,
+          ...(body.limit !== undefined ? { limit: body.limit } : {}),
+        });
       }
 
       default: {

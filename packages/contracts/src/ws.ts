@@ -71,6 +71,14 @@ import {
   ProviderListSkillsInput,
 } from "./providerDiscovery";
 import { ProviderCompactThreadInput } from "./provider";
+import {
+  AGENT_WS_METHODS,
+  AgentCreateInput,
+  AgentDeleteInput,
+  AgentListRunsInput,
+  AgentRunNowInput,
+  AgentUpdateInput,
+} from "./agents";
 
 // ── WebSocket RPC Method Names ───────────────────────────────────────
 
@@ -122,6 +130,14 @@ export const WS_METHODS = {
   serverGetProviderUsageSnapshot: "server.getProviderUsageSnapshot",
   serverTranscribeVoice: "server.transcribeVoice",
   serverUpsertKeybinding: "server.upsertKeybinding",
+
+  // Agents
+  agentsList: AGENT_WS_METHODS.list,
+  agentsCreate: AGENT_WS_METHODS.create,
+  agentsUpdate: AGENT_WS_METHODS.update,
+  agentsDelete: AGENT_WS_METHODS.delete,
+  agentsRunNow: AGENT_WS_METHODS.runNow,
+  agentsListRuns: AGENT_WS_METHODS.listRuns,
 
   // Provider discovery
   providerGetComposerCapabilities: "provider.getComposerCapabilities",
@@ -227,6 +243,14 @@ const WebSocketRequestBody = Schema.Union([
   tagRequestBody(WS_METHODS.providerReadPlugin, ProviderReadPluginInput),
   tagRequestBody(WS_METHODS.providerListModels, ProviderListModelsInput),
   tagRequestBody(WS_METHODS.providerListAgents, ProviderListAgentsInput),
+
+  // Agents
+  tagRequestBody(WS_METHODS.agentsList, Schema.Struct({})),
+  tagRequestBody(WS_METHODS.agentsCreate, AgentCreateInput),
+  tagRequestBody(WS_METHODS.agentsUpdate, AgentUpdateInput),
+  tagRequestBody(WS_METHODS.agentsDelete, AgentDeleteInput),
+  tagRequestBody(WS_METHODS.agentsRunNow, AgentRunNowInput),
+  tagRequestBody(WS_METHODS.agentsListRuns, AgentListRunsInput),
 ]);
 
 export const WebSocketRequest = Schema.Struct({
