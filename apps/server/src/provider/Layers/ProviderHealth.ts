@@ -53,7 +53,11 @@ import {
   writeProviderStatusCache,
 } from "../providerStatusCache";
 
-const DEFAULT_TIMEOUT_MS = 4_000;
+// Node-based CLI probes (gemini, codex, claude, opencode) can cold-start slowly
+// — measured 3.7–5.2s for `gemini --version` on a warm box. Keep the timeout
+// generous so a slow boot doesn't pin the provider to "unavailable" in the
+// status cache. See provider-status/gemini.json regression 2026-04-24.
+const DEFAULT_TIMEOUT_MS = 15_000;
 const CODEX_PROVIDER = "codex" as const;
 const CLAUDE_AGENT_PROVIDER = "claudeAgent" as const;
 const GEMINI_PROVIDER = "gemini" as const;
