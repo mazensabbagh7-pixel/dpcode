@@ -60,6 +60,7 @@ import type { GitCoreShape } from "./git/Services/GitCore.ts";
 import { GitCore } from "./git/Services/GitCore.ts";
 import { GitCommandError, GitManagerError } from "./git/Errors.ts";
 import { MigrationError } from "@effect/sql-sqlite-bun/SqliteMigrator";
+import { MitmProxyService } from "./mitm/MitmProxyService.ts";
 import { AnalyticsService } from "./telemetry/Services/AnalyticsService.ts";
 
 vi.mock("@anthropic-ai/claude-agent-sdk", async (importOriginal) => {
@@ -569,11 +570,22 @@ describe("WebSocket Server", () => {
       ),
       runtimeOverrides,
     );
+    const mitmProxyTestLayer = Layer.succeed(
+      MitmProxyService,
+      MitmProxyService.of({
+        enabled: false,
+        proxyUrl: "",
+        caPath: "",
+        subprocessEnv: () => ({}),
+        latestAnthropicSnapshot: Effect.succeed(null),
+      }),
+    );
     const dependenciesLayer = Layer.empty.pipe(
       Layer.provideMerge(runtimeLayer),
       Layer.provideMerge(providerHealthLayer),
       Layer.provideMerge(openLayer),
       Layer.provideMerge(serverConfigLayer),
+      Layer.provideMerge(mitmProxyTestLayer),
       Layer.provideMerge(AnalyticsService.layerTest),
       Layer.provideMerge(NodeServices.layer),
     );

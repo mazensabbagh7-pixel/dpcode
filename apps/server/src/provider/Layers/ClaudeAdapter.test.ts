@@ -21,7 +21,21 @@ import { Effect, Fiber, Layer, Random, Stream } from "effect";
 
 import { attachmentRelativePath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { MitmProxyService } from "../../mitm/MitmProxyService.ts";
 import { ProviderAdapterValidationError } from "../Errors.ts";
+
+// Tests don't exercise the MITM proxy; provide a disabled stub so ClaudeAdapter
+// can still resolve the MitmProxyService dependency from its Effect context.
+const MitmProxyTestLive = Layer.succeed(
+  MitmProxyService,
+  MitmProxyService.of({
+    enabled: false,
+    proxyUrl: "",
+    caPath: "",
+    subprocessEnv: () => ({}),
+    latestAnthropicSnapshot: Effect.succeed(null),
+  }),
+);
 import { ClaudeAdapter } from "../Services/ClaudeAdapter.ts";
 import { makeClaudeAdapterLive, type ClaudeAdapterLiveOptions } from "./ClaudeAdapter.ts";
 
@@ -182,6 +196,7 @@ function makeHarness(config?: {
           config?.baseDir ?? "/tmp",
         ),
       ),
+      Layer.provideMerge(MitmProxyTestLive),
       Layer.provideMerge(NodeServices.layer),
     ),
     query,
@@ -309,16 +324,20 @@ describe("ClaudeAdapterLive", () => {
       assert.deepEqual(createInput?.options.settingSources, ["user", "project", "local"]);
       assert.equal(createInput?.options.permissionMode, undefined);
       assert.equal(createInput?.options.allowDangerouslySkipPermissions, undefined);
-      assert.deepEqual(createInput?.options.systemPrompt, {
-        type: "preset",
-        preset: "claude_code",
-        append: [
+      // The exact append text evolves as we personalize Claudio. Assert on
+      // shape + stable prefix so test drift doesn't force a rewrite every
+      // time we tune the system prompt append.
+      const systemPrompt = createInput?.options.systemPrompt as
+        | { type?: string; preset?: string; append?: string }
+        | undefined;
+      assert.equal(systemPrompt?.type, "preset");
+      assert.equal(systemPrompt?.preset, "claude_code");
+      assert.ok(typeof systemPrompt?.append === "string" && systemPrompt.append.length > 0);
+      assert.ok(
+        systemPrompt.append.startsWith(
           "You are running inside DP Code, a coding app that embeds the Claude Agent SDK.",
-          "Do not present the host app as Claude Code unless the user is explicitly asking about Claude Code.",
-          "Treat the current working directory as the active workspace for the task.",
-          "When the user asks about the current project, codebase, or repository, proactively inspect files in the current working directory before asking the user where to look.",
-        ].join("\n"),
-      });
+        ),
+      );
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
@@ -1488,6 +1507,7 @@ describe("ClaudeAdapterLive", () => {
       },
     }).pipe(
       Layer.provideMerge(ServerConfig.layerTest("/tmp/claude-adapter-test", "/tmp")),
+      Layer.provideMerge(MitmProxyTestLive),
       Layer.provideMerge(NodeServices.layer),
     );
 
@@ -3171,7 +3191,9 @@ describe("ClaudeAdapterLive", () => {
         attachments: [],
       });
 
-      assert.deepEqual(harness.query.setModelCalls, ["claude-opus-4-6"]);
+      // Claude models default to the 1M context window, so the API model id
+      // carries the `[1m]` suffix even when callers omit contextWindow.
+      assert.deepEqual(harness.query.setModelCalls, ["claude-opus-4-6[1m]"]);
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),

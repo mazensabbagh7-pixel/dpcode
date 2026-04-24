@@ -23,6 +23,7 @@ import { fixPath, resolveBaseDir } from "./os-jank";
 import { Open } from "./open";
 import * as SqlitePersistence from "./persistence/Layers/Sqlite";
 import { makeServerProviderLayer, makeServerRuntimeServicesLayer } from "./serverLayers";
+import { MitmProxyLive } from "./mitm/MitmProxyLayer";
 import { ProjectionSnapshotQuery } from "./orchestration/Services/ProjectionSnapshotQuery";
 import { ProviderHealthLive } from "./provider/Layers/ProviderHealth";
 import { Server } from "./wsServer";
@@ -225,6 +226,9 @@ const LayerLive = (input: CliInput) =>
     Layer.provideMerge(makeServerRuntimeServicesLayer()),
     Layer.provideMerge(makeServerProviderLayer()),
     Layer.provideMerge(ProviderHealthLive),
+    // MitmProxyLive must come before the provider layer consumers so its
+    // proxyUrl + caPath are available when ClaudeAdapter spawns a CLI.
+    Layer.provideMerge(MitmProxyLive),
     Layer.provideMerge(SqlitePersistence.layerConfig),
     Layer.provideMerge(ServerLoggerLive),
     Layer.provideMerge(AnalyticsServiceLayerLive),

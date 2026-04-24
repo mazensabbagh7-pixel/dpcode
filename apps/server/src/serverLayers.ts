@@ -5,6 +5,7 @@ import * as SqlClient from "effect/unstable/sql/SqlClient";
 import { CheckpointDiffQueryLive } from "./checkpointing/Layers/CheckpointDiffQuery";
 import { CheckpointStoreLive } from "./checkpointing/Layers/CheckpointStore";
 import { ServerConfig } from "./config";
+import { MitmProxyService } from "./mitm/MitmProxyService";
 import { AgentRepositoryLive } from "./persistence/Layers/Agents";
 import { OrchestrationCommandReceiptRepositoryLive } from "./persistence/Layers/OrchestrationCommandReceipts";
 import { OrchestrationEventStoreLive } from "./persistence/Layers/OrchestrationEventStore";
@@ -63,7 +64,11 @@ const makeRuntimePtyAdapterLayer = () =>
 export function makeServerProviderLayer(): Layer.Layer<
   ProviderService | ProviderDiscoveryService | ProviderAdapterRegistry,
   ProviderUnsupportedError,
-  SqlClient.SqlClient | ServerConfig | FileSystem.FileSystem | AnalyticsService
+  | SqlClient.SqlClient
+  | ServerConfig
+  | FileSystem.FileSystem
+  | AnalyticsService
+  | MitmProxyService
 > {
   return Effect.gen(function* () {
     const { logProviderEvents, providerEventLogPath } = yield* ServerConfig;

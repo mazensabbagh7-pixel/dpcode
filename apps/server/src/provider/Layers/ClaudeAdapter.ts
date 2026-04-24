@@ -81,6 +81,7 @@ import {
 
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { ServerConfig } from "../../config.ts";
+import { MitmProxyService } from "../../mitm/MitmProxyService.ts";
 import {
   ProviderAdapterProcessError,
   ProviderAdapterRequestError,
@@ -1189,6 +1190,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
   return Effect.gen(function* () {
     const fileSystem = yield* FileSystem.FileSystem;
     const serverConfig = yield* ServerConfig;
+    const mitmProxy = yield* MitmProxyService;
     const nativeEventLogger =
       options?.nativeEventLogger ??
       (options?.nativeEventLogPath !== undefined
@@ -3188,7 +3190,11 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
           ...(newSessionId ? { sessionId: newSessionId } : {}),
           includePartialMessages: true,
           canUseTool,
-          env: process.env,
+          // Merge MITM proxy env vars (HTTPS_PROXY + NODE_EXTRA_CA_CERTS) so
+          // the Claude CLI routes its upstream HTTPS calls through our local
+          // proxy. When the proxy is disabled via DPCODE_MITM_ENABLED, this
+          // spreads an empty object and the CLI hits api.anthropic.com direct.
+          env: { ...process.env, ...mitmProxy.subprocessEnv() },
           ...(input.cwd ? { additionalDirectories: [input.cwd] } : {}),
         };
 
