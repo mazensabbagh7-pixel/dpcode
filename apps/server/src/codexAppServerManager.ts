@@ -108,6 +108,7 @@ interface CodexSessionContext {
   collabReceiverTurns: Map<string, TurnId>;
   collabReceiverParents: Map<string, string>;
   reviewTurnIds: Set<TurnId>;
+  acceptedTurnIds: Set<TurnId>;
   nextRequestId: number;
   stopping: boolean;
   discovery?: boolean;
@@ -782,6 +783,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         collabReceiverTurns: new Map(),
         collabReceiverParents: new Map(),
         reviewTurnIds: new Set(),
+        acceptedTurnIds: new Set(),
         nextRequestId: 1,
         stopping: false,
       };
@@ -1051,6 +1053,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       throw new Error("turn/start response did not include a turn id.");
     }
     const turnId = TurnId.makeUnsafe(turnIdRaw);
+    context.acceptedTurnIds.add(turnId);
 
     this.updateSession(context, {
       status: "running",
@@ -1137,6 +1140,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       throw new Error("turn/steer response did not include a turn id.");
     }
     const turnId = TurnId.makeUnsafe(turnIdRaw);
+    context.acceptedTurnIds.add(turnId);
 
     this.updateSession(context, {
       status: "running",
@@ -1178,6 +1182,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       throw new Error("review/start response did not include a turn id.");
     }
     const turnId = TurnId.makeUnsafe(turnIdRaw);
+    context.acceptedTurnIds.add(turnId);
     context.reviewTurnIds.add(turnId);
     console.log("[codex-review] review/start acknowledged", {
       threadId: context.session.threadId,
@@ -1395,6 +1400,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
         collabReceiverTurns: new Map(),
         collabReceiverParents: new Map(),
         reviewTurnIds: new Set(),
+        acceptedTurnIds: new Set(),
         nextRequestId: 1,
         stopping: false,
       };
@@ -1951,6 +1957,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       collabReceiverTurns: new Map(),
       collabReceiverParents: new Map(),
       reviewTurnIds: new Set(),
+      acceptedTurnIds: new Set(),
       nextRequestId: 1,
       stopping: false,
       discovery: true,
@@ -2117,10 +2124,29 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       notification.params,
     );
     const isChildConversation = childParentTurnId !== undefined;
+    const isProviderChildConversation =
+      providerThreadId !== undefined &&
+      providerParentThreadId !== undefined &&
+      providerThreadId !== providerParentThreadId;
     if (
       isChildConversation &&
       this.shouldSuppressChildConversationNotification(notification.method)
     ) {
+      return;
+    }
+    if (
+      rawRoute.turnId &&
+      !isChildConversation &&
+      !isProviderChildConversation &&
+      !context.acceptedTurnIds.has(rawRoute.turnId) &&
+      !context.reviewTurnIds.has(rawRoute.turnId)
+    ) {
+      console.log("[codex] suppressing stale unaccepted turn notification", {
+        threadId: context.session.threadId,
+        method: notification.method,
+        turnId: rawRoute.turnId,
+        activeTurnId: context.session.activeTurnId ?? null,
+      });
       return;
     }
     const textDelta =
@@ -2187,6 +2213,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       context.collabReceiverTurns.clear();
       if (rawRoute.turnId) {
         context.reviewTurnIds.delete(rawRoute.turnId);
+        context.acceptedTurnIds.delete(rawRoute.turnId);
       }
       const turn = this.readObject(notification.params, "turn");
       const status = this.readString(turn, "status");
@@ -2210,6 +2237,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
       context.collabReceiverTurns.clear();
       if (rawRoute.turnId) {
         context.reviewTurnIds.delete(rawRoute.turnId);
+        context.acceptedTurnIds.delete(rawRoute.turnId);
       }
       this.updateSession(context, {
         status: "ready",
@@ -2493,6 +2521,7 @@ export class CodexAppServerManager extends EventEmitter<CodexAppServerManagerEve
     if (!terminalTurnId) {
       return;
     }
+    context.acceptedTurnIds.delete(terminalTurnId);
 
     this.emitEvent({
       id: EventId.makeUnsafe(randomUUID()),
