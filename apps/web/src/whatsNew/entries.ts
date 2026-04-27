@@ -22,6 +22,24 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.37",
+    date: "Apr 27",
+    features: [
+      {
+        id: "desktop-diagnostics",
+        title: "Desktop diagnostics are built in",
+        description:
+          "Advanced settings now shows backend health, chat database location, Electron profile state, provider CLI resolution, and a copyable runtime snapshot for faster recovery checks.",
+      },
+      {
+        id: "linux-window-hardening",
+        title: "Linux window behavior is steadier",
+        description:
+          "Linux builds now use an opaque desktop window surface and a more reliable file-manager fallback while keeping the macOS visual material path unchanged.",
+      },
+    ],
+  },
+  {
     version: "0.0.36",
     date: "Apr 24",
     features: [

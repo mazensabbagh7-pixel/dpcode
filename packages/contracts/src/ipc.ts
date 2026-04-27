@@ -150,6 +150,75 @@ export interface DesktopUpdateActionResult {
   state: DesktopUpdateState;
 }
 
+export interface DesktopDiagnosticPathStatus {
+  label: string;
+  path: string;
+  exists: boolean;
+  kind: "file" | "directory" | "missing" | "other";
+  sizeBytes: number | null;
+  modifiedAt: string | null;
+  error: string | null;
+}
+
+export interface DesktopDiagnosticCliStatus {
+  name: string;
+  command: string;
+  path: string | null;
+  exists: boolean;
+  executable: boolean;
+  sizeBytes: number | null;
+  error: string | null;
+}
+
+export interface DesktopDiagnosticBackendHealth {
+  checkedAt: string;
+  ok: boolean;
+  status: number | null;
+  statusText: string | null;
+  startupReady: boolean | null;
+  pushBusReady: boolean | null;
+  keybindingsReady: boolean | null;
+  terminalSubscriptionsReady: boolean | null;
+  orchestrationSubscriptionsReady: boolean | null;
+  error: string | null;
+}
+
+export interface DesktopDiagnosticsReport {
+  generatedAt: string;
+  app: {
+    name: string;
+    version: string;
+    commitHash: string | null;
+    isPackaged: boolean;
+    runId: string;
+  };
+  runtime: {
+    platform: NodeJS.Platform;
+    arch: string;
+    electron: string;
+    chrome: string;
+    node: string;
+    pid: number;
+  };
+  backend: {
+    pid: number | null;
+    port: number | null;
+    httpUrl: string | null;
+    wsUrl: string | null;
+    health: DesktopDiagnosticBackendHealth;
+  };
+  paths: DesktopDiagnosticPathStatus[];
+  providers: DesktopDiagnosticCliStatus[];
+  update: DesktopUpdateState;
+  environment: {
+    electronRunAsNode: string | null;
+    appImagePresent: boolean;
+    xdgSessionType: string | null;
+    waylandDisplayPresent: boolean;
+    displayPresent: boolean;
+  };
+}
+
 export interface BrowserTabState {
   id: string;
   url: string;
@@ -249,6 +318,7 @@ export interface DesktopBridge {
   downloadUpdate: () => Promise<DesktopUpdateActionResult>;
   installUpdate: () => Promise<DesktopUpdateActionResult>;
   onUpdateState: (listener: (state: DesktopUpdateState) => void) => () => void;
+  getDiagnostics?: () => Promise<DesktopDiagnosticsReport>;
   notifications: {
     isSupported: () => Promise<boolean>;
     show: (input: DesktopNotificationInput) => Promise<boolean>;

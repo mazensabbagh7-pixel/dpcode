@@ -5,6 +5,8 @@
 
 import {
   PROVIDER_DISPLAY_NAMES,
+  type DesktopDiagnosticPathStatus,
+  type DesktopDiagnosticsReport,
   type ProviderKind,
   type ThreadId,
   DEFAULT_GIT_TEXT_GENERATION_MODEL,
@@ -48,7 +50,9 @@ import { gitRemoveWorktreeMutationOptions } from "../lib/gitReactQuery";
 import {
   ArchiveIcon,
   ChevronDownIcon,
+  CopyIcon,
   PlusIcon,
+  RefreshCwIcon,
   RotateCcwIcon,
   Undo2Icon,
   XIcon,
@@ -281,6 +285,73 @@ function SettingResetButton({ label, onClick }: { label: string; onClick: () => 
   );
 }
 
+function formatDiagnosticBytes(bytes: number | null): string {
+  if (bytes === null) return "n/a";
+  if (bytes < 1024) return `${bytes} B`;
+  const kb = bytes / 1024;
+  if (kb < 1024) return `${kb.toFixed(1)} KB`;
+  return `${(kb / 1024).toFixed(1)} MB`;
+}
+
+function findDiagnosticPath(
+  report: DesktopDiagnosticsReport | undefined,
+  label: string,
+): DesktopDiagnosticPathStatus | null {
+  return report?.paths.find((entry) => entry.label === label) ?? null;
+}
+
+function diagnosticToneClasses(tone: "good" | "warning" | "muted"): string {
+  if (tone === "good") {
+    return "border-emerald-500/30 bg-emerald-500/10 text-emerald-200";
+  }
+  if (tone === "warning") {
+    return "border-amber-500/30 bg-amber-500/10 text-amber-100";
+  }
+  return "border-border/70 bg-background/35 text-muted-foreground";
+}
+
+function DiagnosticsPill({
+  label,
+  value,
+  tone = "muted",
+}: {
+  label: string;
+  value: string;
+  tone?: "good" | "warning" | "muted";
+}) {
+  return (
+    <div
+      className={cn(
+        "flex min-h-8 min-w-0 items-center justify-between gap-3 rounded-lg border px-2.5 py-1.5",
+        diagnosticToneClasses(tone),
+      )}
+    >
+      <span className="truncate text-[11px] font-medium">{label}</span>
+      <span className="truncate font-mono text-[11px]">{value}</span>
+    </div>
+  );
+}
+
+function DiagnosticsPathRow({ pathStatus }: { pathStatus: DesktopDiagnosticPathStatus | null }) {
+  if (!pathStatus) return null;
+  return (
+    <div className="grid min-w-0 gap-1 rounded-lg border border-border/70 bg-background/35 px-3 py-2 sm:grid-cols-[8rem_minmax(0,1fr)_5rem] sm:items-center">
+      <span className="text-[11px] font-medium text-muted-foreground">{pathStatus.label}</span>
+      <span className="truncate font-mono text-[11px] text-foreground" title={pathStatus.path}>
+        {pathStatus.path}
+      </span>
+      <span
+        className={cn(
+          "text-[11px] sm:text-right",
+          pathStatus.exists ? "text-muted-foreground" : "text-amber-200",
+        )}
+      >
+        {pathStatus.exists ? formatDiagnosticBytes(pathStatus.sizeBytes) : "missing"}
+      </span>
+    </div>
+  );
+}
+
 function normalizeManagedWorktreePath(value: string | null | undefined): string | null {
   const trimmed = value?.trim();
   return trimmed && trimmed.length > 0 ? trimmed : null;
@@ -298,6 +369,19 @@ function SettingsRouteView() {
   const queryClient = useQueryClient();
   const serverConfigQuery = useQuery(serverConfigQueryOptions());
   const serverWorktreesQuery = useQuery(serverWorktreesQueryOptions());
+  const desktopDiagnosticsQuery = useQuery({
+    queryKey: ["desktop-diagnostics"],
+    queryFn: async () => {
+      const diagnostics = await window.desktopBridge?.getDiagnostics?.();
+      if (!diagnostics) {
+        throw new Error("Desktop diagnostics are unavailable in this session.");
+      }
+      return diagnostics;
+    },
+    enabled: isElectron,
+    staleTime: 15_000,
+    refetchOnWindowFocus: false,
+  });
   const removeWorktreeMutation = useMutation(gitRemoveWorktreeMutationOptions({ queryClient }));
   const syncServerReadModel = useStore((store) => store.syncServerReadModel);
   const threads = useStore(useMemo(() => createAllThreadsSelector(), []));
@@ -341,6 +425,7 @@ function SettingsRouteView() {
   const [browserNotificationPermission, setBrowserNotificationPermission] = useState(
     readBrowserNotificationPermissionState(),
   );
+  const [isCopyingDiagnostics, setIsCopyingDiagnostics] = useState(false);
 
   const codexBinaryPath = settings.codexBinaryPath;
   const codexHomePath = settings.codexHomePath;
@@ -351,6 +436,11 @@ function SettingsRouteView() {
   const openCodeServerPassword = settings.openCodeServerPassword;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
+  const desktopDiagnostics = desktopDiagnosticsQuery.data;
+  const diagnosticBackendHealth = desktopDiagnostics?.backend.health;
+  const diagnosticDatabase = findDiagnosticPath(desktopDiagnostics, "Chat database");
+  const diagnosticElectronProfile = findDiagnosticPath(desktopDiagnostics, "Electron profile");
+  const diagnosticServerLog = findDiagnosticPath(desktopDiagnostics, "Server log");
   const managedWorktrees = serverWorktreesQuery.data?.worktrees ?? [];
   const worktreesByWorkspaceRoot = managedWorktrees.reduce<
     Array<{
@@ -423,6 +513,27 @@ function SettingsRouteView() {
     settings.openCodeBinaryPath !== defaults.openCodeBinaryPath ||
     settings.openCodeServerUrl !== defaults.openCodeServerUrl ||
     settings.openCodeServerPassword !== defaults.openCodeServerPassword;
+
+  const copyDesktopDiagnostics = useCallback(async () => {
+    if (!desktopDiagnostics) return;
+    setIsCopyingDiagnostics(true);
+    try {
+      await navigator.clipboard.writeText(JSON.stringify(desktopDiagnostics, null, 2));
+      toastManager.add({
+        type: "success",
+        title: "Diagnostics copied",
+        description: "Runtime snapshot copied to clipboard.",
+      });
+    } catch (error) {
+      toastManager.add({
+        type: "error",
+        title: "Could not copy diagnostics",
+        description: error instanceof Error ? error.message : "Clipboard access failed.",
+      });
+    } finally {
+      setIsCopyingDiagnostics(false);
+    }
+  }, [desktopDiagnostics]);
 
   const changedSettingLabels = [
     ...(theme !== "system" ? ["Theme"] : []),
@@ -1930,6 +2041,135 @@ function SettingsRouteView() {
 
   const renderAdvancedPanel = () => (
     <div className="space-y-6">
+      <SettingsSection title="Diagnostics">
+        <div className="space-y-2">
+          <SettingsRow
+            title="Runtime health"
+            description="Current desktop session, backend readiness, and persisted chat-state paths."
+            status={
+              desktopDiagnosticsQuery.isError
+                ? desktopDiagnosticsQuery.error instanceof Error
+                  ? desktopDiagnosticsQuery.error.message
+                  : "Diagnostics failed."
+                : desktopDiagnostics
+                  ? `Updated ${formatRelativeTime(desktopDiagnostics.generatedAt)}`
+                  : "Loading current runtime snapshot..."
+            }
+            control={
+              <div className="flex shrink-0 items-center gap-2">
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon-xs"
+                        variant="outline"
+                        aria-label="Refresh diagnostics"
+                        disabled={desktopDiagnosticsQuery.isFetching}
+                        onClick={() => void desktopDiagnosticsQuery.refetch()}
+                      >
+                        <RefreshCwIcon
+                          className={cn(
+                            "size-3.5",
+                            desktopDiagnosticsQuery.isFetching && "animate-spin",
+                          )}
+                        />
+                      </Button>
+                    }
+                  />
+                  <TooltipPopup side="top">Refresh diagnostics</TooltipPopup>
+                </Tooltip>
+                <Tooltip>
+                  <TooltipTrigger
+                    render={
+                      <Button
+                        size="icon-xs"
+                        variant="outline"
+                        aria-label="Copy diagnostics"
+                        disabled={!desktopDiagnostics || isCopyingDiagnostics}
+                        onClick={() => void copyDesktopDiagnostics()}
+                      >
+                        <CopyIcon className="size-3.5" />
+                      </Button>
+                    }
+                  />
+                  <TooltipPopup side="top">Copy diagnostics</TooltipPopup>
+                </Tooltip>
+              </div>
+            }
+          >
+            <div className="mt-3 space-y-3 border-t border-border/70 pt-3">
+              <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                <DiagnosticsPill
+                  label="Backend /health"
+                  value={
+                    diagnosticBackendHealth
+                      ? diagnosticBackendHealth.ok && diagnosticBackendHealth.startupReady === true
+                        ? "ready"
+                        : (diagnosticBackendHealth.error ?? "not ready")
+                      : "pending"
+                  }
+                  tone={
+                    diagnosticBackendHealth?.ok && diagnosticBackendHealth.startupReady === true
+                      ? "good"
+                      : diagnosticBackendHealth
+                        ? "warning"
+                        : "muted"
+                  }
+                />
+                <DiagnosticsPill
+                  label="Chat database"
+                  value={
+                    diagnosticDatabase?.exists
+                      ? formatDiagnosticBytes(diagnosticDatabase.sizeBytes)
+                      : "missing"
+                  }
+                  tone={diagnosticDatabase?.exists ? "good" : "warning"}
+                />
+                <DiagnosticsPill
+                  label="Electron profile"
+                  value={diagnosticElectronProfile?.exists ? "present" : "missing"}
+                  tone={diagnosticElectronProfile?.exists ? "good" : "warning"}
+                />
+                <DiagnosticsPill
+                  label="Server PID"
+                  value={
+                    desktopDiagnostics?.backend.pid
+                      ? String(desktopDiagnostics.backend.pid)
+                      : "not running"
+                  }
+                  tone={desktopDiagnostics?.backend.pid ? "good" : "warning"}
+                />
+              </div>
+
+              <div className="space-y-1.5">
+                <DiagnosticsPathRow pathStatus={diagnosticDatabase} />
+                <DiagnosticsPathRow pathStatus={diagnosticElectronProfile} />
+                <DiagnosticsPathRow pathStatus={diagnosticServerLog} />
+              </div>
+
+              {desktopDiagnostics ? (
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-4">
+                  {desktopDiagnostics.providers.map((provider) => (
+                    <DiagnosticsPill
+                      key={provider.name}
+                      label={provider.name}
+                      value={
+                        provider.path
+                          ? provider.executable
+                            ? "resolved"
+                            : "not executable"
+                          : "missing"
+                      }
+                      tone={provider.executable ? "good" : "warning"}
+                    />
+                  ))}
+                </div>
+              ) : null}
+            </div>
+          </SettingsRow>
+        </div>
+      </SettingsSection>
+
       <SettingsSection title="Provider installs">
         <div className="space-y-2">
           <SettingsRow

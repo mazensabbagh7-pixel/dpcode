@@ -19,6 +19,7 @@ import {
   systemPreferences,
 } from "electron";
 import type { IpcMainEvent, MenuItemConstructorOptions } from "electron";
+import type { BrowserWindowConstructorOptions } from "electron";
 import * as Effect from "effect/Effect";
 import type {
   DesktopTheme,
@@ -74,6 +75,7 @@ import {
   resolveLegacyDesktopUserDataPaths,
   seedDesktopUserDataProfileFromLegacy,
 } from "./desktopUserDataProfile";
+import { buildDesktopDiagnosticsReport } from "./desktopDiagnostics";
 
 syncShellEnvironment();
 
@@ -89,6 +91,7 @@ const UPDATE_GET_STATE_CHANNEL = "desktop:update-get-state";
 const UPDATE_CHECK_CHANNEL = "desktop:update-check";
 const UPDATE_DOWNLOAD_CHANNEL = "desktop:update-download";
 const UPDATE_INSTALL_CHANNEL = "desktop:update-install";
+const DIAGNOSTICS_GET_CHANNEL = "desktop:diagnostics-get";
 const NOTIFICATIONS_IS_SUPPORTED_CHANNEL = "desktop:notifications-is-supported";
 const NOTIFICATIONS_SHOW_CHANNEL = "desktop:notifications-show";
 const BASE_DIR =
@@ -123,6 +126,12 @@ const browserPerfLoggingEnabled =
   (isDevelopment &&
     process.env.DPCODE_BROWSER_PERF !== "0" &&
     process.env.T3CODE_BROWSER_PERF !== "0");
+
+function configureLinuxRuntimeFlags(): void {
+  if (process.platform !== "linux") return;
+  app.commandLine.appendSwitch("ozone-platform-hint", "auto");
+  app.commandLine.appendSwitch("enable-features", "WaylandWindowDecorations");
+}
 
 type DesktopUpdateErrorContext = DesktopUpdateState["errorContext"];
 
@@ -752,6 +761,27 @@ async function checkForUpdatesFromMenu(): Promise<void> {
       buttons: ["OK"],
     });
   }
+}
+
+async function openShellPathOrThrow(targetPath: string): Promise<void> {
+  const errorMessage = await shell.openPath(targetPath);
+  if (errorMessage.trim().length > 0) {
+    throw new Error(errorMessage);
+  }
+}
+
+async function revealPathInFileManager(resolvedPath: string, stats: FS.Stats): Promise<void> {
+  if (stats.isDirectory()) {
+    await openShellPathOrThrow(resolvedPath);
+    return;
+  }
+
+  if (process.platform === "linux") {
+    await openShellPathOrThrow(Path.dirname(resolvedPath));
+    return;
+  }
+
+  shell.showItemInFolder(resolvedPath);
 }
 
 function configureApplicationMenu(): void {
@@ -1644,15 +1674,7 @@ function registerIpcHandlers(): void {
       throw new Error(`Folder not found: ${resolvedPath}`);
     }
 
-    if (stats.isDirectory()) {
-      const errorMessage = await shell.openPath(resolvedPath);
-      if (errorMessage.trim().length > 0) {
-        throw new Error(errorMessage);
-      }
-      return;
-    }
-
-    shell.showItemInFolder(resolvedPath);
+    await revealPathInFileManager(resolvedPath, stats);
   });
 
   ipcMain.removeHandler(UPDATE_GET_STATE_CHANNEL);
@@ -1690,6 +1712,30 @@ function registerIpcHandlers(): void {
       state: updateState,
     } satisfies DesktopUpdateActionResult;
   });
+
+  ipcMain.removeHandler(DIAGNOSTICS_GET_CHANNEL);
+  ipcMain.handle(DIAGNOSTICS_GET_CHANNEL, async () =>
+    buildDesktopDiagnosticsReport({
+      appName: APP_DISPLAY_NAME,
+      appVersion: app.getVersion(),
+      commitHash: resolveAboutCommitHash(),
+      isPackaged: app.isPackaged,
+      runId: APP_RUN_ID,
+      baseDir: BASE_DIR,
+      stateDir: STATE_DIR,
+      logDir: LOG_DIR,
+      appRoot: resolveAppRoot(),
+      resourcesPath: process.resourcesPath,
+      electronUserDataPath: app.getPath("userData"),
+      staticDir: resolveDesktopStaticDir(),
+      backendPid: backendProcess?.pid ?? null,
+      backendPort,
+      backendHttpUrl,
+      backendWsUrl,
+      updateState,
+      env: process.env,
+    }),
+  );
 
   ipcMain.removeHandler(NOTIFICATIONS_IS_SUPPORTED_CHANNEL);
   ipcMain.handle(NOTIFICATIONS_IS_SUPPORTED_CHANNEL, async () => Notification.isSupported());
@@ -1732,6 +1778,25 @@ function getIconOption(): { icon: string } | Record<string, never> {
   return iconPath ? { icon: iconPath } : {};
 }
 
+function getWindowMaterialOptions(): Pick<
+  BrowserWindowConstructorOptions,
+  "backgroundColor" | "titleBarStyle" | "trafficLightPosition" | "vibrancy" | "visualEffectState"
+> {
+  if (process.platform === "darwin") {
+    return {
+      titleBarStyle: "hiddenInset",
+      trafficLightPosition: { x: 16, y: 18 },
+      vibrancy: "under-window",
+      visualEffectState: "active",
+      backgroundColor: "#00000000",
+    };
+  }
+
+  return {
+    backgroundColor: "#0f0f11",
+  };
+}
+
 function createWindow(): BrowserWindow {
   const window = new BrowserWindow({
     width: 1100,
@@ -1742,11 +1807,7 @@ function createWindow(): BrowserWindow {
     autoHideMenuBar: true,
     ...getIconOption(),
     title: APP_DISPLAY_NAME,
-    titleBarStyle: "hiddenInset",
-    trafficLightPosition: { x: 16, y: 18 },
-    vibrancy: "under-window",
-    visualEffectState: "active",
-    backgroundColor: "#00000000",
+    ...getWindowMaterialOptions(),
     webPreferences: {
       preload: Path.join(__dirname, "preload.js"),
       contextIsolation: true,
@@ -1875,6 +1936,7 @@ function configureMediaPermissions(): void {
 // Override Electron's userData path before the `ready` event so that
 // Chromium session data uses a filesystem-friendly directory name.
 // Must be called synchronously at the top level — before `app.whenReady()`.
+configureLinuxRuntimeFlags();
 app.setPath("userData", resolveUserDataPath());
 
 configureAppIdentity();
