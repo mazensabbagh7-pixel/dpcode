@@ -18,6 +18,7 @@ import {
   AgentRepository,
   type AgentRepositoryShape,
   DeleteAgentDefinitionInput,
+  FinishAgentRunsForThreadInput,
   GetAgentDefinitionInput,
   ListAgentRunsInput,
 } from "../Services/Agents.ts";
@@ -225,6 +226,20 @@ const makeAgentRepository = Effect.gen(function* () {
       `,
   });
 
+  const finishAgentRunsForThreadRows = SqlSchema.void({
+    Request: FinishAgentRunsForThreadInput,
+    execute: ({ threadId, status, endedAt, errorMessage }) =>
+      sql`
+        UPDATE agent_runs
+        SET
+          status = ${status},
+          ended_at = ${endedAt},
+          error_message = ${errorMessage ?? null}
+        WHERE thread_id = ${threadId}
+          AND status IN ('queued', 'running')
+      `,
+  });
+
   const upsert: AgentRepositoryShape["upsert"] = (row) =>
     upsertAgentDefinitionRow(row).pipe(
       Effect.mapError(toPersistenceSqlError("AgentRepository.upsert:query")),
@@ -255,6 +270,11 @@ const makeAgentRepository = Effect.gen(function* () {
       Effect.mapError(toPersistenceSqlError("AgentRepository.listRunsForAgent:query")),
     );
 
+  const finishRunsForThread: AgentRepositoryShape["finishRunsForThread"] = (input) =>
+    finishAgentRunsForThreadRows(input).pipe(
+      Effect.mapError(toPersistenceSqlError("AgentRepository.finishRunsForThread:query")),
+    );
+
   return {
     upsert,
     getById,
@@ -262,6 +282,7 @@ const makeAgentRepository = Effect.gen(function* () {
     deleteById,
     upsertRun,
     listRunsForAgent,
+    finishRunsForThread,
   } satisfies AgentRepositoryShape;
 });
 

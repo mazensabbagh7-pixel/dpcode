@@ -23,10 +23,7 @@ function DialogClose(props: DialogPrimitive.Close.Props) {
 function DialogBackdrop({ className, ...props }: DialogPrimitive.Backdrop.Props) {
   return (
     <DialogPrimitive.Backdrop
-      className={cn(
-        "fixed inset-0 z-50 bg-black/60",
-        className,
-      )}
+      className={cn("fixed inset-0 z-50 bg-black/60", className)}
       data-slot="dialog-backdrop"
       {...props}
     />

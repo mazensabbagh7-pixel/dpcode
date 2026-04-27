@@ -35,13 +35,7 @@ import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { Badge } from "./ui/badge";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { SidebarHeaderTrigger, SidebarInset } from "./ui/sidebar";
 import { Textarea } from "./ui/textarea";
 import { toastManager } from "./ui/toast";
@@ -54,12 +48,7 @@ import {
   RefreshCwIcon,
 } from "~/lib/icons";
 
-const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = [
-  "claudeAgent",
-  "codex",
-  "gemini",
-  "opencode",
-];
+const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = ["claudeAgent", "codex", "gemini", "opencode"];
 
 const DEFAULT_ISSUE_PROMPT =
   "Inspect this GitHub issue, summarize the requested change, map the affected files, then propose a focused implementation plan before editing.";
@@ -68,7 +57,9 @@ const DEFAULT_WORKTREE_PROMPT =
   "Work in this isolated worktree. Inspect the current repo state first, then implement the requested task with focused verification.";
 
 function projectLabel(project: Project): string {
-  return project.localName || project.name || project.folderName || project.remoteName || project.cwd;
+  return (
+    project.localName || project.name || project.folderName || project.remoteName || project.cwd
+  );
 }
 
 function getProjectOptions(projects: readonly Project[]): Project[] {
@@ -107,9 +98,8 @@ function formatDateTime(value: string | undefined): string {
 function parseGitHubReference(input: string): { kind: "issue" | "pull"; number: string } | null {
   const trimmed = input.trim();
   if (!trimmed) return null;
-  const urlMatch = /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(issues|pull)\/(\d+)(?:[/?#].*)?$/i.exec(
-    trimmed,
-  );
+  const urlMatch =
+    /^https:\/\/github\.com\/[^/\s]+\/[^/\s]+\/(issues|pull)\/(\d+)(?:[/?#].*)?$/i.exec(trimmed);
   if (urlMatch?.[1] && urlMatch[2]) {
     return { kind: urlMatch[1].toLowerCase() === "pull" ? "pull" : "issue", number: urlMatch[2] };
   }
@@ -184,7 +174,10 @@ function ProviderUsageBlock(props: { provider: ProviderKind }) {
   return (
     <div className="space-y-1 text-xs">
       {snapshot.usageLines.slice(0, 3).map((line) => (
-        <div key={`${line.label}:${line.value}`} className="flex items-center justify-between gap-3">
+        <div
+          key={`${line.label}:${line.value}`}
+          className="flex items-center justify-between gap-3"
+        >
           <span className="truncate text-muted-foreground">{line.label}</span>
           <span className="shrink-0 text-foreground">{line.value}</span>
         </div>
@@ -211,7 +204,9 @@ function ProviderCard(props: { provider: ProviderKind; status: ServerProviderSta
             <span className="truncate text-sm font-semibold">
               {PROVIDER_DISPLAY_NAMES[props.provider]}
             </span>
-            {status?.available ? <CircleCheckIcon className="size-3.5 text-success-foreground" /> : null}
+            {status?.available ? (
+              <CircleCheckIcon className="size-3.5 text-success-foreground" />
+            ) : null}
           </div>
           <p className="mt-0.5 truncate text-muted-foreground text-xs">
             {status?.message ?? "Provider has not reported status yet."}
@@ -229,7 +224,9 @@ function ProviderCard(props: { provider: ProviderKind; status: ServerProviderSta
       <div className="mt-3 grid gap-1 border-t border-border/70 pt-3 text-xs">
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground">Auth</span>
-          <span className="truncate text-right">{status?.authLabel ?? status?.authType ?? "n/a"}</span>
+          <span className="truncate text-right">
+            {status?.authLabel ?? status?.authType ?? "n/a"}
+          </span>
         </div>
         <div className="flex items-center justify-between gap-3">
           <span className="text-muted-foreground">Checked</span>
@@ -320,7 +317,9 @@ export function WorkflowHub() {
   useEffect(() => {
     const branch = gitStatusQuery.data?.branch;
     if (!branch) return;
-    setBaseBranch((current) => (current.trim().length === 0 || current === "main" ? branch : current));
+    setBaseBranch((current) =>
+      current.trim().length === 0 || current === "main" ? branch : current,
+    );
   }, [gitStatusQuery.data?.branch]);
 
   const providerStatusByKind = useMemo(() => {
@@ -369,9 +368,14 @@ export function WorkflowHub() {
       provider,
       envMode: "local",
     });
-    useComposerDraftStore
-      .getState()
-      .setPrompt(threadId, makeIssuePrompt({ reference: githubReference, project: selectedProject, taskPrompt: githubPrompt }));
+    useComposerDraftStore.getState().setPrompt(
+      threadId,
+      makeIssuePrompt({
+        reference: githubReference,
+        project: selectedProject,
+        taskPrompt: githubPrompt,
+      }),
+    );
   }, [githubPrompt, githubReference, handleNewThread, provider, selectedProject]);
 
   const createIsolatedWorktree = useCallback(async () => {
@@ -533,7 +537,8 @@ export function WorkflowHub() {
                   <div>
                     <h2 className="text-sm font-semibold">GitHub Issue / PR Intake</h2>
                     <p className="text-muted-foreground text-xs">
-                      Start a focused thread from an issue, or resolve a PR into local/worktree context.
+                      Start a focused thread from an issue, or resolve a PR into local/worktree
+                      context.
                     </p>
                   </div>
                 </div>
@@ -558,7 +563,11 @@ export function WorkflowHub() {
                       <GitPullRequestIcon className="size-3.5" />
                       Resolve PR
                     </Button>
-                    <Button type="button" onClick={() => void startIssueThread()} disabled={!selectedProject}>
+                    <Button
+                      type="button"
+                      onClick={() => void startIssueThread()}
+                      disabled={!selectedProject}
+                    >
                       <GitHubIcon className="size-3.5" />
                       Start Thread
                     </Button>
@@ -622,7 +631,8 @@ export function WorkflowHub() {
                 <div>
                   <h2 className="text-sm font-semibold">Diff + Commit / PR</h2>
                   <p className="text-muted-foreground text-xs">
-                    Review current repo state and run the same commit, push, and PR actions available in chat.
+                    Review current repo state and run the same commit, push, and PR actions
+                    available in chat.
                   </p>
                 </div>
                 <GitActionsControl gitCwd={selectedCwd} activeThreadId={null} />
@@ -647,8 +657,12 @@ export function WorkflowHub() {
                         className="grid grid-cols-[minmax(0,1fr)_5rem_5rem] gap-2 border-b border-border/60 px-3 py-2 text-xs last:border-b-0"
                       >
                         <span className="truncate">{file.path}</span>
-                        <span className="text-right text-success-foreground">+{file.insertions}</span>
-                        <span className="text-right text-destructive-foreground">-{file.deletions}</span>
+                        <span className="text-right text-success-foreground">
+                          +{file.insertions}
+                        </span>
+                        <span className="text-right text-destructive-foreground">
+                          -{file.deletions}
+                        </span>
                       </div>
                     ))}
                   </div>
@@ -685,7 +699,9 @@ export function WorkflowHub() {
             worktreePath: input.worktreePath,
             lastKnownPr: input.pullRequest,
           });
-          useComposerDraftStore.getState().setPrompt(threadId, makePullRequestPrompt(input.pullRequest));
+          useComposerDraftStore
+            .getState()
+            .setPrompt(threadId, makePullRequestPrompt(input.pullRequest));
         }}
       />
     </SidebarInset>

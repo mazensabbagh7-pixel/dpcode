@@ -20,6 +20,7 @@ import {
   ProviderRequestKind,
   ProviderReviewTarget,
   ProviderSandboxMode,
+  ProviderSessionAgentOptions,
   ProviderStartOptions,
   ProviderUserInputAnswers,
   RuntimeMode,
@@ -58,6 +59,7 @@ export const ProviderSessionStartInput = Schema.Struct({
   approvalPolicy: Schema.optional(ProviderApprovalPolicy),
   sandboxMode: Schema.optional(ProviderSandboxMode),
   providerOptions: Schema.optional(ProviderStartOptions),
+  agentOptions: Schema.optional(ProviderSessionAgentOptions),
   runtimeMode: RuntimeMode,
 });
 export type ProviderSessionStartInput = typeof ProviderSessionStartInput.Type;
@@ -86,6 +88,7 @@ export const ProviderForkThreadInput = Schema.Struct({
   cwd: Schema.optional(TrimmedNonEmptyString),
   modelSelection: Schema.optional(ModelSelection),
   providerOptions: Schema.optional(ProviderStartOptions),
+  agentOptions: Schema.optional(ProviderSessionAgentOptions),
   runtimeMode: RuntimeMode,
 });
 export type ProviderForkThreadInput = typeof ProviderForkThreadInput.Type;

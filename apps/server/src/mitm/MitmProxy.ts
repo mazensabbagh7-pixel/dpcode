@@ -12,11 +12,7 @@
 
 import * as http from "node:http";
 import * as https from "node:https";
-import type {
-  IncomingHttpHeaders,
-  IncomingMessage,
-  ServerResponse,
-} from "node:http";
+import type { IncomingHttpHeaders, IncomingMessage, ServerResponse } from "node:http";
 import type { AddressInfo } from "node:net";
 import * as tls from "node:tls";
 import forge from "node-forge";
@@ -47,26 +43,19 @@ interface CachedLeaf {
   readonly expiresAt: number;
 }
 
-function mintLeafContext(
-  ca: CertificateAuthority,
-  host: string,
-): tls.SecureContext {
+function mintLeafContext(ca: CertificateAuthority, host: string): tls.SecureContext {
   // Mint a leaf certificate for `host`, signed by our root CA. The leaf's
   // subject CN + subjectAltName include the host so Node's TLS verifier
   // (which Node's own http client will use on the CLI side) accepts it.
   const keypair = forge.pki.rsa.generateKeyPair({ bits: 2048, e: 0x10001 });
   const leaf = forge.pki.createCertificate();
   leaf.publicKey = keypair.publicKey;
-  leaf.serialNumber = `${Date.now().toString(16)}${Math.floor(
-    Math.random() * 1_000_000,
-  )
+  leaf.serialNumber = `${Date.now().toString(16)}${Math.floor(Math.random() * 1_000_000)
     .toString(16)
     .padStart(6, "0")}`;
   leaf.validity.notBefore = new Date();
   leaf.validity.notAfter = new Date();
-  leaf.validity.notAfter.setDate(
-    leaf.validity.notAfter.getDate() + LEAF_VALIDITY_DAYS,
-  );
+  leaf.validity.notAfter.setDate(leaf.validity.notAfter.getDate() + LEAF_VALIDITY_DAYS);
   leaf.setSubject([{ name: "commonName", value: host }]);
   leaf.setIssuer(ca.caCert.subject.attributes);
   leaf.setExtensions([

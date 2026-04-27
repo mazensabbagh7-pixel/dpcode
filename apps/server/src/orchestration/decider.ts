@@ -727,6 +727,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         ...(command.providerOptions !== undefined
           ? { providerOptions: command.providerOptions }
           : {}),
+        ...(command.agentOptions !== undefined ? { agentOptions: command.agentOptions } : {}),
         ...(command.reviewTarget !== undefined ? { reviewTarget: command.reviewTarget } : {}),
         assistantDeliveryMode: command.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
         dispatchMode,
@@ -799,6 +800,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           ...(command.providerOptions !== undefined
             ? { providerOptions: command.providerOptions }
             : {}),
+          ...(command.agentOptions !== undefined ? { agentOptions: command.agentOptions } : {}),
           ...(command.reviewTarget !== undefined ? { reviewTarget: command.reviewTarget } : {}),
           assistantDeliveryMode: command.assistantDeliveryMode ?? DEFAULT_ASSISTANT_DELIVERY_MODE,
           dispatchMode: command.dispatchMode ?? "queue",
@@ -980,6 +982,7 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
           ...(command.providerOptions !== undefined
             ? { providerOptions: command.providerOptions }
             : {}),
+          ...(command.agentOptions !== undefined ? { agentOptions: command.agentOptions } : {}),
           ...(command.assistantDeliveryMode !== undefined
             ? { assistantDeliveryMode: command.assistantDeliveryMode }
             : {}),

@@ -64,11 +64,7 @@ const makeRuntimePtyAdapterLayer = () =>
 export function makeServerProviderLayer(): Layer.Layer<
   ProviderService | ProviderDiscoveryService | ProviderAdapterRegistry,
   ProviderUnsupportedError,
-  | SqlClient.SqlClient
-  | ServerConfig
-  | FileSystem.FileSystem
-  | AnalyticsService
-  | MitmProxyService
+  SqlClient.SqlClient | ServerConfig | FileSystem.FileSystem | AnalyticsService | MitmProxyService
 > {
   return Effect.gen(function* () {
     const { logProviderEvents, providerEventLogPath } = yield* ServerConfig;

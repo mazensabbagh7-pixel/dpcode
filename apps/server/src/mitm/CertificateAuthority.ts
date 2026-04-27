@@ -64,9 +64,7 @@ function generateRootCa(): {
   cert.serialNumber = Date.now().toString(16).padStart(16, "0");
   cert.validity.notBefore = new Date();
   cert.validity.notAfter = new Date();
-  cert.validity.notAfter.setFullYear(
-    cert.validity.notAfter.getFullYear() + CA_VALIDITY_YEARS,
-  );
+  cert.validity.notAfter.setFullYear(cert.validity.notAfter.getFullYear() + CA_VALIDITY_YEARS);
   cert.setSubject(CA_SUBJECT);
   cert.setIssuer(CA_SUBJECT);
   cert.setExtensions([

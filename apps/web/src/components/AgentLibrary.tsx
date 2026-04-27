@@ -30,21 +30,10 @@ import { SidebarHeaderTrigger, SidebarInset } from "./ui/sidebar";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Switch } from "./ui/switch";
-import {
-  Select,
-  SelectItem,
-  SelectPopup,
-  SelectTrigger,
-  SelectValue,
-} from "./ui/select";
+import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { PlayIcon, PlusIcon, Trash2 } from "~/lib/icons";
 
-const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = [
-  "claudeAgent",
-  "codex",
-  "gemini",
-  "opencode",
-];
+const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = ["claudeAgent", "codex", "gemini", "opencode"];
 
 const ENV_MODES: ReadonlyArray<ThreadEnvironmentMode> = ["local", "worktree"];
 
@@ -117,8 +106,7 @@ export function AgentLibrary() {
     [agents, selectedAgentId],
   );
 
-  const invalidateList = () =>
-    queryClient.invalidateQueries({ queryKey: agentQueryKeys.list() });
+  const invalidateList = () => queryClient.invalidateQueries({ queryKey: agentQueryKeys.list() });
 
   const createMutation = useMutation({
     ...agentCreateMutationOptions(),
@@ -420,7 +408,10 @@ function AgentEditor({
         />
       </Field>
 
-      <Field label="Tool allowlist" hint="Comma-separated MCP tool names. Empty = inherit defaults.">
+      <Field
+        label="Tool allowlist"
+        hint="Comma-separated MCP tool names. Empty = inherit defaults."
+      >
         <Input
           value={draft.toolAllowlist}
           onChange={(e) => update("toolAllowlist", e.target.value)}

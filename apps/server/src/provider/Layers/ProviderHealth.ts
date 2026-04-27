@@ -170,13 +170,13 @@ function normalizeCodexAuthMethod(authMethod: string | undefined): string | unde
   }
 }
 
-function codexAuthMetadataFromMethod(
-  authMethod: string | undefined,
-): {
-  readonly type: string;
-  readonly label: string;
-  readonly voiceTranscriptionAvailable?: boolean;
-} | undefined {
+function codexAuthMetadataFromMethod(authMethod: string | undefined):
+  | {
+      readonly type: string;
+      readonly label: string;
+      readonly voiceTranscriptionAvailable?: boolean;
+    }
+  | undefined {
   const normalized = normalizeCodexAuthMethod(authMethod);
   if (!normalized) return undefined;
   if (normalized === "apiKey") {
@@ -849,14 +849,14 @@ export const checkCodexProviderStatus: Effect.Effect<
   const codexAccountType = extractCodexAccountTypeFromOutput(authOutput);
   const codexLabel =
     parsed.authStatus === "authenticated"
-      ? codexAccountAuthLabel({ type: codexAccountType, planType: codexPlanType }) ??
-        parsed.authLabel
+      ? (codexAccountAuthLabel({ type: codexAccountType, planType: codexPlanType }) ??
+        parsed.authLabel)
       : undefined;
   const codexAuthType =
     parsed.authStatus === "authenticated"
       ? codexAccountType === "apiKey"
         ? "apiKey"
-        : codexPlanType ?? parsed.authType
+        : (codexPlanType ?? parsed.authType)
       : undefined;
 
   return {

@@ -2966,6 +2966,12 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
             } satisfies PermissionResult;
           });
 
+        const agentToolAllowlist = new Set(
+          (input.agentOptions?.toolAllowlist ?? [])
+            .map((toolName) => toolName.trim())
+            .filter((toolName) => toolName.length > 0),
+        );
+
         const canUseTool: CanUseTool = (toolName, toolInput, callbackOptions) =>
           Effect.runPromise(
             Effect.gen(function* () {
@@ -3003,6 +3009,13 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
                   behavior: "deny",
                   message:
                     "The client captured your proposed plan. Stop here and wait for the user's feedback or implementation request in a later turn.",
+                } satisfies PermissionResult;
+              }
+
+              if (agentToolAllowlist.size > 0 && !agentToolAllowlist.has(toolName)) {
+                return {
+                  behavior: "deny",
+                  message: `Tool '${toolName}' is not in this agent's allowlist.`,
                 } satisfies PermissionResult;
               }
 
@@ -3160,6 +3173,10 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
           ...(fastMode ? { fastMode: true } : {}),
         };
         const claudeSubagents = buildClaudeSdkSubagents();
+        const agentSystemPromptAppend = trimOrNull(input.agentOptions?.systemPromptAppend ?? null);
+        const systemPromptAppend = agentSystemPromptAppend
+          ? `${EMBEDDED_CLAUDE_SYSTEM_PROMPT_APPEND}\n\n${agentSystemPromptAppend}`
+          : EMBEDDED_CLAUDE_SYSTEM_PROMPT_APPEND;
 
         const queryOptions: ClaudeQueryOptions = {
           ...(input.cwd ? { cwd: input.cwd } : {}),
@@ -3171,7 +3188,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
           systemPrompt: {
             type: "preset",
             preset: "claude_code",
-            append: EMBEDDED_CLAUDE_SYSTEM_PROMPT_APPEND,
+            append: systemPromptAppend,
           },
           ...(Object.keys(claudeSubagents).length > 0 ? { agents: claudeSubagents } : {}),
           // Keep the runtime value explicit so Opus 4.7 can pass xhigh through to the SDK.

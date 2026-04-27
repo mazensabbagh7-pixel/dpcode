@@ -14,6 +14,7 @@ import {
   type OrchestrationReadModel,
   type ProviderRuntimeEvent,
   type RuntimeMode,
+  type AgentRunStatus,
 } from "@t3tools/contracts";
 import { Cache, Cause, Duration, Effect, Layer, Option, Ref, Stream } from "effect";
 import { makeDrainableWorker } from "@t3tools/shared/DrainableWorker";
@@ -27,6 +28,8 @@ import {
 import { ProviderService } from "../../provider/Services/ProviderService.ts";
 import { ProjectionTurnRepository } from "../../persistence/Services/ProjectionTurns.ts";
 import { ProjectionTurnRepositoryLive } from "../../persistence/Layers/ProjectionTurns.ts";
+import { AgentRepository } from "../../persistence/Services/Agents.ts";
+import { AgentRepositoryLive } from "../../persistence/Layers/Agents.ts";
 import { resolveThreadWorkspaceCwd } from "../../checkpointing/Utils.ts";
 import { isGitRepository } from "../../git/isRepo.ts";
 import { OrchestrationEngineService } from "../Services/OrchestrationEngine.ts";
@@ -300,6 +303,25 @@ function runtimeTurnState(
 function runtimeTurnErrorMessage(event: ProviderRuntimeEvent): string | undefined {
   const payloadErrorMessage = asString(runtimePayloadRecord(event)?.errorMessage);
   return payloadErrorMessage;
+}
+
+function epochMsFromIso(value: string): number {
+  const parsed = Date.parse(value);
+  return Number.isFinite(parsed) ? parsed : Date.now();
+}
+
+function agentRunTerminalStatusFromEvent(event: ProviderRuntimeEvent): AgentRunStatus {
+  if (event.type === "turn.aborted") {
+    return "cancelled";
+  }
+  const state = runtimeTurnState(event);
+  if (state === "failed") {
+    return "failed";
+  }
+  if (state === "interrupted" || state === "cancelled") {
+    return "cancelled";
+  }
+  return "complete";
 }
 
 function runtimeErrorMessageFromEvent(event: ProviderRuntimeEvent): string | undefined {
@@ -883,6 +905,7 @@ const make = Effect.gen(function* () {
   const orchestrationEngine = yield* OrchestrationEngineService;
   const providerService = yield* ProviderService;
   const projectionTurnRepository = yield* ProjectionTurnRepository;
+  const agentRepository = yield* AgentRepository;
 
   const assistantDeliveryModeRef = yield* Ref.make<AssistantDeliveryMode>(
     DEFAULT_ASSISTANT_DELIVERY_MODE,
@@ -1652,6 +1675,29 @@ const make = Effect.gen(function* () {
             },
             createdAt: now,
           });
+
+          if (isTerminalTurnEvent) {
+            yield* agentRepository
+              .finishRunsForThread({
+                threadId: thread.id,
+                status: agentRunTerminalStatusFromEvent(event),
+                endedAt: epochMsFromIso(event.createdAt),
+                errorMessage:
+                  event.type === "turn.completed"
+                    ? (runtimeTurnErrorMessage(event) ?? null)
+                    : (event.payload.reason ?? "Provider turn aborted."),
+              })
+              .pipe(
+                Effect.catchCause((cause) =>
+                  Effect.logWarning("provider runtime ingestion failed to finish agent run", {
+                    threadId: thread.id,
+                    eventId: event.eventId,
+                    eventType: event.type,
+                    cause: Cause.pretty(cause),
+                  }),
+                ),
+              );
+          }
         }
       }
 
@@ -2000,4 +2046,4 @@ const make = Effect.gen(function* () {
 export const ProviderRuntimeIngestionLive = Layer.effect(
   ProviderRuntimeIngestionService,
   make,
-).pipe(Layer.provide(ProjectionTurnRepositoryLive));
+).pipe(Layer.provide(AgentRepositoryLive), Layer.provide(ProjectionTurnRepositoryLive));

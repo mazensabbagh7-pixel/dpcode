@@ -172,10 +172,7 @@ export function createSplitWorkspaceCollisionSelector(input: {
       return null;
     }
 
-    if (
-      previousThreadShellById === state.threadShellById &&
-      previousProjects === state.projects
-    ) {
+    if (previousThreadShellById === state.threadShellById && previousProjects === state.projects) {
       return previousCollision;
     }
 

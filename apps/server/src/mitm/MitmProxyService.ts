@@ -23,7 +23,6 @@ export interface MitmProxyShape {
   readonly latestAnthropicSnapshot: Effect.Effect<AnthropicRateLimitSnapshot | null>;
 }
 
-export class MitmProxyService extends ServiceMap.Service<
-  MitmProxyService,
-  MitmProxyShape
->()("t3/mitm/MitmProxyService") {}
+export class MitmProxyService extends ServiceMap.Service<MitmProxyService, MitmProxyShape>()(
+  "t3/mitm/MitmProxyService",
+) {}

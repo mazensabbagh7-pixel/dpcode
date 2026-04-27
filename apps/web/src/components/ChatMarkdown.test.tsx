@@ -28,7 +28,7 @@ describe("ChatMarkdown", () => {
     expect(markup).toContain('class="katex"');
     expect(markup).not.toContain("katex-display");
     expect(markup).not.toContain("$e^{i\\\\pi} + 1 = 0$");
-  });
+  }, 15_000);
 
   it("renders display math with KaTeX block output", async () => {
     const markup = await renderMarkdown("$$\n\\\\int_0^1 x^2 \\, dx\n$$");

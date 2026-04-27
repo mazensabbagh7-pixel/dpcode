@@ -8,7 +8,7 @@
  * Used by the WS handlers in `wsServer.ts` for CRUD and run-now flows.
  */
 
-import { AgentDefinition, AgentRun } from "@t3tools/contracts";
+import { AgentDefinition, AgentRun, AgentRunStatus } from "@t3tools/contracts";
 import { Option, Schema, ServiceMap } from "effect";
 import type { Effect } from "effect";
 
@@ -30,6 +30,14 @@ export const ListAgentRunsInput = Schema.Struct({
 });
 export type ListAgentRunsInput = typeof ListAgentRunsInput.Type;
 
+export const FinishAgentRunsForThreadInput = Schema.Struct({
+  threadId: Schema.String,
+  status: AgentRunStatus,
+  endedAt: Schema.Number,
+  errorMessage: Schema.optional(Schema.NullOr(Schema.String)),
+});
+export type FinishAgentRunsForThreadInput = typeof FinishAgentRunsForThreadInput.Type;
+
 /**
  * AgentRepositoryShape — CRUD surface for saved agents + their runs.
  */
@@ -43,10 +51,7 @@ export interface AgentRepositoryShape {
   ) => Effect.Effect<Option.Option<AgentDefinition>, ProjectionRepositoryError>;
 
   /** List all agent definitions. Order: most recently updated first. */
-  readonly listAll: () => Effect.Effect<
-    ReadonlyArray<AgentDefinition>,
-    ProjectionRepositoryError
-  >;
+  readonly listAll: () => Effect.Effect<ReadonlyArray<AgentDefinition>, ProjectionRepositoryError>;
 
   /** Delete an agent definition by id. Associated runs cascade via FK. */
   readonly deleteById: (
@@ -64,12 +69,16 @@ export interface AgentRepositoryShape {
   readonly listRunsForAgent: (
     input: ListAgentRunsInput,
   ) => Effect.Effect<ReadonlyArray<AgentRun>, ProjectionRepositoryError>;
+
+  /** Mark any non-terminal runs for a thread as complete/failed/cancelled. */
+  readonly finishRunsForThread: (
+    input: FinishAgentRunsForThreadInput,
+  ) => Effect.Effect<void, ProjectionRepositoryError>;
 }
 
 /**
  * AgentRepository — Service tag for saved-agent persistence.
  */
-export class AgentRepository extends ServiceMap.Service<
-  AgentRepository,
-  AgentRepositoryShape
->()("t3/persistence/Services/Agents/AgentRepository") {}
+export class AgentRepository extends ServiceMap.Service<AgentRepository, AgentRepositoryShape>()(
+  "t3/persistence/Services/Agents/AgentRepository",
+) {}

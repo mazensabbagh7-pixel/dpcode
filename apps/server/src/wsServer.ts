@@ -1655,15 +1655,17 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
     readonly threadId: ThreadId;
   }) {
     const adapter = yield* providerAdapterRegistry.getByProvider("opencode");
-    const snapshot = yield* adapter.readThread(input.threadId).pipe(
-      Effect.mapError((cause) =>
-        buildImportMessagesError(
-          cause instanceof Error && cause.message.length > 0
-            ? cause.message
-            : "Failed to read OpenCode session history.",
+    const snapshot = yield* adapter
+      .readThread(input.threadId)
+      .pipe(
+        Effect.mapError((cause) =>
+          buildImportMessagesError(
+            cause instanceof Error && cause.message.length > 0
+              ? cause.message
+              : "Failed to read OpenCode session history.",
+          ),
         ),
-      ),
-    );
+      );
 
     const importedMessages = mapOpenCodeSnapshotMessages({
       threadId: input.threadId,
@@ -1760,7 +1762,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
               ? { resume: externalId }
               : thread.modelSelection.provider === "opencode"
                 ? { openCodeSessionId: externalId }
-              : { threadId: externalId },
+                : { threadId: externalId },
           runtimeMode: thread.runtimeMode,
         });
 
@@ -2261,7 +2263,7 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const variables = body.variables ?? {};
         const renderedTask = agent.taskTemplate.replace(
           /\{\{\s*(\w+)\s*\}\}/g,
-          (_match, key: string) => (key in variables ? variables[key] ?? "" : ""),
+          (_match, key: string) => (key in variables ? (variables[key] ?? "") : ""),
         );
 
         const now = Date.now();
@@ -2271,47 +2273,72 @@ export const createServer = Effect.fn(function* (): Effect.fn.Return<
         const messageId = MessageId.makeUnsafe(crypto.randomUUID());
         const titleStamp = new Date(now).toISOString().slice(0, 16).replace("T", " ");
         const title = `${agent.name} — ${titleStamp}`;
-
-        yield* orchestrationEngine.dispatch({
-          type: "thread.create",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
-          threadId,
-          projectId: ProjectId.makeUnsafe(agent.projectId),
-          title,
-          modelSelection: agent.modelSelection,
-          runtimeMode: "full-access",
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-          envMode: agent.envMode,
-          branch: null,
-          worktreePath: null,
-          createdAt,
-        });
-
-        yield* orchestrationEngine.dispatch({
-          type: "thread.turn.start",
-          commandId: CommandId.makeUnsafe(crypto.randomUUID()),
-          threadId,
-          message: {
-            messageId,
-            role: "user",
-            text: renderedTask,
-            attachments: [],
-          },
-          modelSelection: agent.modelSelection,
-          runtimeMode: "full-access",
-          interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
-          createdAt,
-        });
-
-        yield* agentRepository.upsertRun({
+        const agentOptions = {
+          ...(agent.systemPrompt?.trim() ? { systemPromptAppend: agent.systemPrompt.trim() } : {}),
+          ...(agent.toolAllowlist.length > 0 ? { toolAllowlist: agent.toolAllowlist } : {}),
+        };
+        const queuedRun = {
           id: runId,
           agentId: agent.id,
           threadId,
           trigger: "manual",
-          status: "running",
+          status: "queued",
           startedAt: now,
           renderedTask,
-        });
+        } as const;
+
+        yield* agentRepository.upsertRun(queuedRun);
+
+        yield* Effect.gen(function* () {
+          yield* orchestrationEngine.dispatch({
+            type: "thread.create",
+            commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+            threadId,
+            projectId: ProjectId.makeUnsafe(agent.projectId),
+            title,
+            modelSelection: agent.modelSelection,
+            runtimeMode: "full-access",
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            envMode: agent.envMode,
+            branch: null,
+            worktreePath: null,
+            createdAt,
+          });
+
+          yield* orchestrationEngine.dispatch({
+            type: "thread.turn.start",
+            commandId: CommandId.makeUnsafe(crypto.randomUUID()),
+            threadId,
+            message: {
+              messageId,
+              role: "user",
+              text: renderedTask,
+              attachments: [],
+            },
+            modelSelection: agent.modelSelection,
+            ...(Object.keys(agentOptions).length > 0 ? { agentOptions } : {}),
+            runtimeMode: "full-access",
+            interactionMode: DEFAULT_PROVIDER_INTERACTION_MODE,
+            createdAt,
+          });
+
+          yield* agentRepository.upsertRun({
+            ...queuedRun,
+            status: "running",
+          });
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.gen(function* () {
+              yield* agentRepository.upsertRun({
+                ...queuedRun,
+                status: "failed",
+                endedAt: Date.now(),
+                errorMessage: Cause.pretty(cause),
+              });
+              return yield* Effect.failCause(cause);
+            }),
+          ),
+        );
 
         yield* agentRepository.upsert({
           ...agent,

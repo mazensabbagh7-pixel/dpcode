@@ -21,10 +21,7 @@ function SheetClose(props: SheetPrimitive.Close.Props) {
 function SheetBackdrop({ className, ...props }: SheetPrimitive.Backdrop.Props) {
   return (
     <SheetPrimitive.Backdrop
-      className={cn(
-        "fixed inset-0 z-50 bg-black/60",
-        className,
-      )}
+      className={cn("fixed inset-0 z-50 bg-black/60", className)}
       data-slot="sheet-backdrop"
       {...props}
     />
@@ -80,10 +77,8 @@ function SheetPopup({
             "relative flex max-h-full min-h-0 w-full min-w-0 flex-col bg-popover not-dark:bg-clip-padding text-popover-foreground shadow-lg/5 before:pointer-events-none before:absolute before:inset-0 before:shadow-[0_1px_--theme(--color-black/4%)] max-sm:before:hidden dark:before:shadow-[0_-1px_--theme(--color-white/6%)]",
             side === "bottom" && "row-start-2 border-t",
             side === "top" && "border-b",
-            side === "left" &&
-              "w-[calc(100%-(--spacing(12)))] max-w-md border-e",
-            side === "right" &&
-              "col-start-2 w-[calc(100%-(--spacing(12)))] max-w-md border-s",
+            side === "left" && "w-[calc(100%-(--spacing(12)))] max-w-md border-e",
+            side === "right" && "col-start-2 w-[calc(100%-(--spacing(12)))] max-w-md border-s",
             variant === "inset" &&
               "before:hidden sm:rounded-2xl sm:border sm:before:rounded-[calc(var(--radius-2xl)-1px)] sm:**:data-[slot=sheet-footer]:rounded-b-[calc(var(--radius-2xl)-1px)]",
             className,

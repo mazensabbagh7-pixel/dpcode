@@ -11,6 +11,7 @@ import {
   type ProviderRuntimeEvent,
   ProviderKind,
   type ProviderReviewTarget,
+  type ProviderSessionAgentOptions,
   type ProviderStartOptions,
   type ProviderSkillReference,
   type OrchestrationSession,
@@ -217,6 +218,7 @@ const make = Effect.gen(function* () {
     );
 
   const threadProviderOptions = new Map<string, ProviderStartOptions>();
+  const threadAgentOptions = new Map<string, ProviderSessionAgentOptions>();
   const threadModelSelections = new Map<string, ModelSelection>();
   const queuedTurnStartsByThread = new Map<
     string,
@@ -578,6 +580,7 @@ const make = Effect.gen(function* () {
     options?: {
       readonly modelSelection?: ModelSelection;
       readonly providerOptions?: ProviderStartOptions;
+      readonly agentOptions?: ProviderSessionAgentOptions;
       readonly runtimeMode?: RuntimeMode;
     },
   ) {
@@ -640,6 +643,7 @@ const make = Effect.gen(function* () {
         ...(options?.providerOptions !== undefined
           ? { providerOptions: options.providerOptions }
           : {}),
+        ...(options?.agentOptions !== undefined ? { agentOptions: options.agentOptions } : {}),
         ...(input?.resumeCursor !== undefined ? { resumeCursor: input.resumeCursor } : {}),
         runtimeMode: desiredRuntimeMode,
       });
@@ -733,6 +737,7 @@ const make = Effect.gen(function* () {
         ...(options?.providerOptions !== undefined
           ? { providerOptions: options.providerOptions }
           : {}),
+        ...(options?.agentOptions !== undefined ? { agentOptions: options.agentOptions } : {}),
         runtimeMode: desiredRuntimeMode,
       });
       if (forked) {
@@ -769,6 +774,7 @@ const make = Effect.gen(function* () {
     readonly reviewTarget?: ProviderReviewTarget;
     readonly modelSelection?: ModelSelection;
     readonly providerOptions?: ProviderStartOptions;
+    readonly agentOptions?: ProviderSessionAgentOptions;
     readonly runtimeMode?: RuntimeMode;
     readonly interactionMode?: "default" | "plan";
     readonly dispatchMode?: "queue" | "steer";
@@ -778,13 +784,19 @@ const make = Effect.gen(function* () {
     if (!thread) {
       return;
     }
+    const effectiveAgentOptions =
+      input.agentOptions ?? threadAgentOptions.get(input.threadId) ?? undefined;
     yield* ensureSessionForThread(input.threadId, input.createdAt, {
       ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
       ...(input.providerOptions !== undefined ? { providerOptions: input.providerOptions } : {}),
+      ...(effectiveAgentOptions !== undefined ? { agentOptions: effectiveAgentOptions } : {}),
       ...(input.runtimeMode !== undefined ? { runtimeMode: input.runtimeMode } : {}),
     });
     if (input.providerOptions !== undefined) {
       threadProviderOptions.set(input.threadId, input.providerOptions);
+    }
+    if (input.agentOptions !== undefined) {
+      threadAgentOptions.set(input.threadId, input.agentOptions);
     }
     if (input.modelSelection !== undefined) {
       threadModelSelections.set(input.threadId, input.modelSelection);
@@ -1129,6 +1141,9 @@ const make = Effect.gen(function* () {
       ...(event.payload.providerOptions !== undefined
         ? { providerOptions: event.payload.providerOptions }
         : {}),
+      ...(event.payload.agentOptions !== undefined
+        ? { agentOptions: event.payload.agentOptions }
+        : {}),
       ...(event.payload.runtimeMode !== undefined
         ? { runtimeMode: event.payload.runtimeMode }
         : {}),
@@ -1192,6 +1207,9 @@ const make = Effect.gen(function* () {
           : {}),
         ...(nextQueuedTurn.providerOptions !== undefined
           ? { providerOptions: nextQueuedTurn.providerOptions }
+          : {}),
+        ...(nextQueuedTurn.agentOptions !== undefined
+          ? { agentOptions: nextQueuedTurn.agentOptions }
           : {}),
         ...(nextQueuedTurn.reviewTarget !== undefined
           ? { reviewTarget: nextQueuedTurn.reviewTarget }
@@ -1512,6 +1530,7 @@ const make = Effect.gen(function* () {
       ...(payload.providerOptions !== undefined
         ? { providerOptions: payload.providerOptions }
         : {}),
+      ...(payload.agentOptions !== undefined ? { agentOptions: payload.agentOptions } : {}),
       ...(payload.assistantDeliveryMode !== undefined
         ? { assistantDeliveryMode: payload.assistantDeliveryMode }
         : {}),
@@ -1677,11 +1696,13 @@ const make = Effect.gen(function* () {
           }
 
           const cachedProviderOptions = threadProviderOptions.get(event.payload.threadId);
+          const cachedAgentOptions = threadAgentOptions.get(event.payload.threadId);
           yield* ensureSessionForThread(event.payload.threadId, event.occurredAt, {
             modelSelection: event.payload.modelSelection,
             ...(cachedProviderOptions !== undefined
               ? { providerOptions: cachedProviderOptions }
               : {}),
+            ...(cachedAgentOptions !== undefined ? { agentOptions: cachedAgentOptions } : {}),
           });
           threadModelSelections.set(event.payload.threadId, event.payload.modelSelection);
           return;
@@ -1692,11 +1713,13 @@ const make = Effect.gen(function* () {
             return;
           }
           const cachedProviderOptions = threadProviderOptions.get(event.payload.threadId);
+          const cachedAgentOptions = threadAgentOptions.get(event.payload.threadId);
           const cachedModelSelection = threadModelSelections.get(event.payload.threadId);
           yield* ensureSessionForThread(event.payload.threadId, event.occurredAt, {
             ...(cachedProviderOptions !== undefined
               ? { providerOptions: cachedProviderOptions }
               : {}),
+            ...(cachedAgentOptions !== undefined ? { agentOptions: cachedAgentOptions } : {}),
             ...(cachedModelSelection !== undefined ? { modelSelection: cachedModelSelection } : {}),
             runtimeMode: event.payload.runtimeMode,
           });

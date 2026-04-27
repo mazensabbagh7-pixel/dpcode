@@ -33,9 +33,7 @@ function toMessage(cause: unknown, fallback: string): string {
   }
 }
 
-function buildDisabledShape(
-  latestRef: Ref.Ref<AnthropicRateLimitSnapshot | null>,
-): MitmProxyShape {
+function buildDisabledShape(latestRef: Ref.Ref<AnthropicRateLimitSnapshot | null>): MitmProxyShape {
   return {
     enabled: false,
     proxyUrl: "",
@@ -103,9 +101,7 @@ export const MitmProxyLive = Layer.effect(
       catch: (cause) => toMessage(cause, "proxy start failed"),
     }).pipe(
       Effect.catch((detail) =>
-        Effect.logWarning(`MITM proxy: failed to start listener: ${detail}`).pipe(
-          Effect.as(null),
-        ),
+        Effect.logWarning(`MITM proxy: failed to start listener: ${detail}`).pipe(Effect.as(null)),
       ),
     );
 

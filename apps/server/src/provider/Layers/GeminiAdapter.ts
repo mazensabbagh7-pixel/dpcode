@@ -1544,10 +1544,7 @@ const makeGeminiAdapter = Effect.fn("makeGeminiAdapter")(function* (
 
   const isPathInsideCwd = (absolutePath: string, cwd: string): boolean => {
     const relative = path.relative(cwd, absolutePath);
-    return (
-      relative.length === 0 ||
-      (!relative.startsWith("..") && !path.isAbsolute(relative))
-    );
+    return relative.length === 0 || (!relative.startsWith("..") && !path.isAbsolute(relative));
   };
 
   const applyLineRange = (
@@ -1561,9 +1558,7 @@ const makeGeminiAdapter = Effect.fn("makeGeminiAdapter")(function* (
     const lines = content.split(/\r?\n/);
     const startIdx = line && line > 1 ? line - 1 : 0;
     const endIdx =
-      limit !== undefined && limit > 0
-        ? Math.min(lines.length, startIdx + limit)
-        : lines.length;
+      limit !== undefined && limit > 0 ? Math.min(lines.length, startIdx + limit) : lines.length;
     return lines.slice(startIdx, endIdx).join("\n");
   };
 

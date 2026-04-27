@@ -29,6 +29,13 @@ export const TypeId: TypeId = "~local/sqlite-node/SqliteClient";
 
 export type TypeId = "~local/sqlite-node/SqliteClient";
 
+type StatementSyncWithReturnArrays = StatementSync & {
+  readonly setReturnArrays: (enabled: boolean) => void;
+};
+
+const canReturnArrays = (statement: StatementSync): boolean =>
+  typeof (statement as Partial<StatementSyncWithReturnArrays>).setReturnArrays === "function";
+
 /**
  * SqliteClient - Effect service tag for the sqlite SQL client.
  */
@@ -141,11 +148,19 @@ const makeWithDatabase = (
             Effect.try({
               try: () => {
                 if (hasRows(statement)) {
-                  statement.setReturnArrays(true);
-                  // Safe to cast to array after we've setReturnArrays(true)
-                  return statement.all(...(params as any)) as unknown as ReadonlyArray<
-                    ReadonlyArray<unknown>
+                  if (canReturnArrays(statement)) {
+                    (statement as StatementSyncWithReturnArrays).setReturnArrays(true);
+                    return statement.all(...(params as any)) as unknown as ReadonlyArray<
+                      ReadonlyArray<unknown>
+                    >;
+                  }
+                  const columnNames = statement
+                    .columns()
+                    .map((column: { readonly name: string }) => column.name);
+                  const rows = statement.all(...(params as any)) as unknown as ReadonlyArray<
+                    Record<string, unknown>
                   >;
+                  return rows.map((row) => columnNames.map((name: string) => row[name]));
                 }
                 statement.run(...(params as any));
                 return [];
@@ -154,8 +169,8 @@ const makeWithDatabase = (
             }),
           (statement) =>
             Effect.sync(() => {
-              if (hasRows(statement)) {
-                statement.setReturnArrays(false);
+              if (hasRows(statement) && canReturnArrays(statement)) {
+                (statement as StatementSyncWithReturnArrays).setReturnArrays(false);
               }
             }),
         );

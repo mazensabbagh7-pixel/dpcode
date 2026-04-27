@@ -314,10 +314,7 @@ function buildThreadJumpLabelMap(input: {
 function ProviderGlyph({ provider, className }: { provider: ProviderKind; className?: string }) {
   if (provider === "claudeAgent") {
     return (
-      <ClaudeAI
-        aria-hidden="true"
-        className={cn("text-[color:var(--color-claude)]", className)}
-      />
+      <ClaudeAI aria-hidden="true" className={cn("text-[color:var(--color-claude)]", className)} />
     );
   }
   if (provider === "gemini") {

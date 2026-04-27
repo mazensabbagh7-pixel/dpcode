@@ -23,6 +23,7 @@ import {
   ProviderSteerTurnInput,
   ProviderSessionStartInput,
   ProviderStopSessionInput,
+  ProviderSessionAgentOptions,
   ProviderStartOptions,
   type ProviderRuntimeEvent,
   type ProviderSession,
@@ -97,6 +98,7 @@ function toRuntimePayloadFromSession(
   extra?: {
     readonly modelSelection?: unknown;
     readonly providerOptions?: unknown;
+    readonly agentOptions?: unknown;
     readonly lastRuntimeEvent?: string;
     readonly lastRuntimeEventAt?: string;
   },
@@ -108,6 +110,7 @@ function toRuntimePayloadFromSession(
     lastError: session.lastError ?? null,
     ...(extra?.modelSelection !== undefined ? { modelSelection: extra.modelSelection } : {}),
     ...(extra?.providerOptions !== undefined ? { providerOptions: extra.providerOptions } : {}),
+    ...(extra?.agentOptions !== undefined ? { agentOptions: extra.agentOptions } : {}),
     ...(extra?.lastRuntimeEvent !== undefined ? { lastRuntimeEvent: extra.lastRuntimeEvent } : {}),
     ...(extra?.lastRuntimeEventAt !== undefined
       ? { lastRuntimeEventAt: extra.lastRuntimeEventAt }
@@ -133,6 +136,16 @@ function readPersistedProviderOptions(
   }
   const raw = "providerOptions" in runtimePayload ? runtimePayload.providerOptions : undefined;
   return Schema.is(ProviderStartOptions)(raw) ? raw : undefined;
+}
+
+function readPersistedAgentOptions(
+  runtimePayload: ProviderRuntimeBinding["runtimePayload"],
+): ProviderSessionAgentOptions | undefined {
+  if (!runtimePayload || typeof runtimePayload !== "object" || Array.isArray(runtimePayload)) {
+    return undefined;
+  }
+  const raw = "agentOptions" in runtimePayload ? runtimePayload.agentOptions : undefined;
+  return Schema.is(ProviderSessionAgentOptions)(raw) ? raw : undefined;
 }
 
 function readPersistedCwd(
@@ -177,6 +190,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       extra?: {
         readonly modelSelection?: unknown;
         readonly providerOptions?: unknown;
+        readonly agentOptions?: unknown;
         readonly lastRuntimeEvent?: string;
         readonly lastRuntimeEventAt?: string;
       },
@@ -196,6 +210,15 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
     );
     const processRuntimeEvent = (event: ProviderRuntimeEvent): Effect.Effect<void> =>
       publishRuntimeEvent(event);
+
+    const readPersistedRuntimeOptionsForThread = Effect.fnUntraced(function* (threadId: ThreadId) {
+      const binding = Option.getOrUndefined(yield* directory.getBinding(threadId));
+      return {
+        modelSelection: binding ? readPersistedModelSelection(binding.runtimePayload) : undefined,
+        providerOptions: binding ? readPersistedProviderOptions(binding.runtimePayload) : undefined,
+        agentOptions: binding ? readPersistedAgentOptions(binding.runtimePayload) : undefined,
+      } as const;
+    });
 
     // Fan provider events straight into the pubsub so Claude's high-volume
     // streams do not pay for an extra queue hop in the hot path.
@@ -238,6 +261,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         const persistedCwd = readPersistedCwd(input.binding.runtimePayload);
         const persistedModelSelection = readPersistedModelSelection(input.binding.runtimePayload);
         const persistedProviderOptions = readPersistedProviderOptions(input.binding.runtimePayload);
+        const persistedAgentOptions = readPersistedAgentOptions(input.binding.runtimePayload);
 
         const resumed = yield* adapter.startSession({
           threadId: input.binding.threadId,
@@ -245,6 +269,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           ...(persistedCwd ? { cwd: persistedCwd } : {}),
           ...(persistedModelSelection ? { modelSelection: persistedModelSelection } : {}),
           ...(persistedProviderOptions ? { providerOptions: persistedProviderOptions } : {}),
+          ...(persistedAgentOptions ? { agentOptions: persistedAgentOptions } : {}),
           ...(hasResumeCursor ? { resumeCursor: input.binding.resumeCursor } : {}),
           runtimeMode: input.binding.runtimeMode ?? "full-access",
         });
@@ -317,12 +342,18 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           (persistedBinding?.provider === input.provider
             ? readPersistedProviderOptions(persistedBinding.runtimePayload)
             : undefined);
+        const effectiveAgentOptions =
+          input.agentOptions ??
+          (persistedBinding?.provider === input.provider
+            ? readPersistedAgentOptions(persistedBinding.runtimePayload)
+            : undefined);
         const adapter = yield* registry.getByProvider(input.provider);
         const session = yield* adapter.startSession({
           ...input,
           ...(effectiveProviderOptions !== undefined
             ? { providerOptions: effectiveProviderOptions }
             : {}),
+          ...(effectiveAgentOptions !== undefined ? { agentOptions: effectiveAgentOptions } : {}),
           ...(effectiveResumeCursor !== undefined ? { resumeCursor: effectiveResumeCursor } : {}),
         });
 
@@ -336,6 +367,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         yield* upsertSessionBinding(session, threadId, {
           modelSelection: input.modelSelection,
           providerOptions: effectiveProviderOptions,
+          agentOptions: effectiveAgentOptions,
         });
         yield* analytics.record("provider.session.started", {
           provider: session.provider,
@@ -374,6 +406,8 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
 
         const effectiveProviderOptions =
           input.providerOptions ?? readPersistedProviderOptions(sourceBinding.runtimePayload);
+        const effectiveAgentOptions =
+          input.agentOptions ?? readPersistedAgentOptions(sourceBinding.runtimePayload);
 
         const adapter = yield* registry.getByProvider(sourceBinding.provider);
         if (!adapter.forkThread) {
@@ -395,6 +429,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
             ...(effectiveProviderOptions !== undefined
               ? { providerOptions: effectiveProviderOptions }
               : {}),
+            ...(effectiveAgentOptions !== undefined ? { agentOptions: effectiveAgentOptions } : {}),
             ...(sourceBinding.resumeCursor !== null && sourceBinding.resumeCursor !== undefined
               ? { sourceResumeCursor: sourceBinding.resumeCursor }
               : {}),
@@ -422,6 +457,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
             ...(effectiveProviderOptions !== undefined
               ? { providerOptions: effectiveProviderOptions }
               : {}),
+            ...(effectiveAgentOptions !== undefined ? { agentOptions: effectiveAgentOptions } : {}),
             lastRuntimeEvent: "provider.thread.forked",
             lastRuntimeEventAt: new Date().toISOString(),
           });
@@ -442,6 +478,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
                 : {}),
               ...(effectiveProviderOptions !== undefined
                 ? { providerOptions: effectiveProviderOptions }
+                : {}),
+              ...(effectiveAgentOptions !== undefined
+                ? { agentOptions: effectiveAgentOptions }
                 : {}),
               lastRuntimeEvent: "provider.thread.forked",
               lastRuntimeEventAt: new Date().toISOString(),
@@ -478,13 +517,24 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           allowRecovery: true,
         });
         const turn = yield* routed.adapter.sendTurn(input);
+        const persistedOptions = yield* readPersistedRuntimeOptionsForThread(input.threadId);
         yield* directory.upsert({
           threadId: input.threadId,
           provider: routed.adapter.provider,
           status: "running",
           ...(turn.resumeCursor !== undefined ? { resumeCursor: turn.resumeCursor } : {}),
           runtimePayload: {
-            ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+            ...(input.modelSelection !== undefined
+              ? { modelSelection: input.modelSelection }
+              : persistedOptions.modelSelection !== undefined
+                ? { modelSelection: persistedOptions.modelSelection }
+                : {}),
+            ...(persistedOptions.providerOptions !== undefined
+              ? { providerOptions: persistedOptions.providerOptions }
+              : {}),
+            ...(persistedOptions.agentOptions !== undefined
+              ? { agentOptions: persistedOptions.agentOptions }
+              : {}),
             activeTurnId: turn.turnId,
             lastRuntimeEvent: "provider.sendTurn",
             lastRuntimeEventAt: new Date().toISOString(),
@@ -533,13 +583,24 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           );
         }
         const turn = yield* routed.adapter.steerTurn(input);
+        const persistedOptions = yield* readPersistedRuntimeOptionsForThread(input.threadId);
         yield* directory.upsert({
           threadId: input.threadId,
           provider: routed.adapter.provider,
           status: "running",
           ...(turn.resumeCursor !== undefined ? { resumeCursor: turn.resumeCursor } : {}),
           runtimePayload: {
-            ...(input.modelSelection !== undefined ? { modelSelection: input.modelSelection } : {}),
+            ...(input.modelSelection !== undefined
+              ? { modelSelection: input.modelSelection }
+              : persistedOptions.modelSelection !== undefined
+                ? { modelSelection: persistedOptions.modelSelection }
+                : {}),
+            ...(persistedOptions.providerOptions !== undefined
+              ? { providerOptions: persistedOptions.providerOptions }
+              : {}),
+            ...(persistedOptions.agentOptions !== undefined
+              ? { agentOptions: persistedOptions.agentOptions }
+              : {}),
             activeTurnId: turn.turnId,
             lastRuntimeEvent: "provider.steerTurn",
             lastRuntimeEventAt: new Date().toISOString(),

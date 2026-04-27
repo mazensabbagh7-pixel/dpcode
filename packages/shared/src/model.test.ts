@@ -253,7 +253,7 @@ describe("hasEffortLevel", () => {
 describe("context window helpers", () => {
   it("returns the default context window from capabilities", () => {
     expect(getDefaultContextWindow(getModelCapabilities("claudeAgent", "claude-opus-4-6"))).toBe(
-      "200k",
+      "1m",
     );
     expect(getDefaultContextWindow(getModelCapabilities("codex", "gpt-5.4"))).toBeNull();
   });
@@ -319,18 +319,18 @@ describe("normalizeClaudeModelOptions", () => {
       normalizeClaudeModelOptions("claude-opus-4-6", {
         effort: "high",
         fastMode: false,
-        contextWindow: "200k",
+        contextWindow: "1m",
       }),
     ).toBeUndefined();
   });
 
-  it("preserves non-default claude context window options", () => {
+  it("preserves non-default 200k claude context window options", () => {
     expect(
       normalizeClaudeModelOptions("claude-opus-4-6", {
-        contextWindow: "1m",
+        contextWindow: "200k",
       }),
     ).toEqual({
-      contextWindow: "1m",
+      contextWindow: "200k",
     });
   });
 
