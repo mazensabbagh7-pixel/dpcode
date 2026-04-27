@@ -33,7 +33,13 @@ import { Switch } from "./ui/switch";
 import { Select, SelectItem, SelectPopup, SelectTrigger, SelectValue } from "./ui/select";
 import { PlayIcon, PlusIcon, Trash2 } from "~/lib/icons";
 
-const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = ["claudeAgent", "codex", "gemini", "opencode"];
+const PROVIDER_ORDER: ReadonlyArray<ProviderKind> = [
+  "claudeAgent",
+  "codex",
+  "gemini",
+  "opencode",
+  "hermes",
+];
 
 const ENV_MODES: ReadonlyArray<ThreadEnvironmentMode> = ["local", "worktree"];
 

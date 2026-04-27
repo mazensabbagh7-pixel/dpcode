@@ -17,6 +17,7 @@ const HANDOFF_PROVIDER_ORDER: ReadonlyArray<ProviderKind> = [
   "claudeAgent",
   "gemini",
   "opencode",
+  "hermes",
 ];
 const IMPORTABLE_THREAD_ACTIVITY_KINDS = new Set([
   "account.rate-limits.updated",

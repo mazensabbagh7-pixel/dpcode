@@ -34,6 +34,7 @@ const MODEL_OPTIONS_BY_PROVIDER = {
       upstreamProviderName: "OpenAI",
     },
   ],
+  hermes: [{ slug: "hermes-default", name: "Hermes Default" }],
 } as const satisfies Record<ProviderKind, ReadonlyArray<ProviderModelOption & { slug: ModelSlug }>>;
 
 const MANY_OPENCODE_MODELS = Array.from({ length: 16 }, (_, index) => ({
@@ -95,7 +96,7 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("Codex");
-        expect(text).toContain("Claude");
+        expect(text).toContain("Claudio");
         expect(text).not.toContain("Claude Sonnet 4.6");
       });
     } finally {
@@ -245,7 +246,7 @@ describe("ProviderModelPicker", () => {
       await vi.waitFor(() => {
         const text = document.body.textContent ?? "";
         expect(text).toContain("Codex");
-        expect(text).toContain("Claude");
+        expect(text).toContain("Claudio");
         expect(text).toContain("Sign in");
       });
     } finally {
@@ -281,7 +282,7 @@ describe("ProviderModelPicker", () => {
       await page.getByRole("button").click();
 
       await vi.waitFor(() => {
-        expect(document.body.textContent ?? "").toContain("Claude");
+        expect(document.body.textContent ?? "").toContain("Claudio");
       });
 
       await expect.element(page.getByText("Sign in")).not.toBeInTheDocument();

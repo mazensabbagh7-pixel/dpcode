@@ -1256,6 +1256,7 @@ export default function ChatView({
       claudeAgent: resolveHint("claudeAgent"),
       gemini: resolveHint("gemini"),
       opencode: resolveHint("opencode"),
+      hermes: resolveHint("hermes"),
     };
   }, [
     activeProject?.defaultModelSelection,
@@ -1306,6 +1307,11 @@ export default function ChatView({
         customModelsByProvider.opencode,
         composerModelHintByProvider.opencode,
       ),
+      hermes: getAppModelOptions(
+        "hermes",
+        customModelsByProvider.hermes,
+        composerModelHintByProvider.hermes,
+      ),
     };
     const result: Record<
       ProviderKind,
@@ -1317,9 +1323,10 @@ export default function ChatView({
       codex: codexDynamicModelsQuery.data,
       gemini: geminiModelsQuery.data,
       opencode: openCodeDynamicModelsQuery.data,
+      hermes: undefined,
     };
 
-    for (const provider of ["claudeAgent", "codex", "gemini", "opencode"] as const) {
+    for (const provider of ["claudeAgent", "codex", "gemini", "opencode", "hermes"] as const) {
       const dynamicModels = dynamicSources[provider]?.models;
       if (dynamicModels && dynamicModels.length > 0) {
         result[provider] = mergeDynamicModelOptions({
@@ -1362,6 +1369,7 @@ export default function ChatView({
       codex: codexDynamicModelsQuery.data?.models ?? [],
       gemini: geminiModelsQuery.data?.models ?? [],
       opencode: openCodeDynamicModelsQuery.data?.models ?? [],
+      hermes: [],
     }),
     [
       claudeDynamicModelsQuery.data?.models,
@@ -1375,6 +1383,7 @@ export default function ChatView({
     codex: codexDynamicModelsQuery,
     gemini: geminiModelsQuery,
     opencode: openCodeDynamicModelsQuery,
+    hermes: undefined,
   } as const;
   const selectedRuntimeModel = useMemo(
     () =>
@@ -1415,9 +1424,10 @@ export default function ChatView({
   const draftModelSelectionForSelectedProvider =
     composerDraft.modelSelectionByProvider[selectedProvider] ?? null;
   const selectedProviderModelsQuery = providerModelsQueryByProvider[selectedProvider];
-  const providerModelsLoading =
-    selectedProviderModelsQuery.isLoading ||
-    (selectedProviderModelsQuery.isFetching && selectedProviderModelsQuery.data === undefined);
+  const providerModelsLoading = Boolean(
+    selectedProviderModelsQuery?.isLoading ||
+    (selectedProviderModelsQuery?.isFetching && selectedProviderModelsQuery.data === undefined),
+  );
   const showComposerModelBootstrapSkeleton = shouldShowComposerModelBootstrapSkeleton({
     selectedProvider,
     selectedModel,

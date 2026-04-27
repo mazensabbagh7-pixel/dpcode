@@ -22,6 +22,7 @@ import { ProviderUnsupportedError } from "./provider/Errors";
 import { makeClaudeAdapterLive } from "./provider/Layers/ClaudeAdapter";
 import { makeCodexAdapterLive } from "./provider/Layers/CodexAdapter";
 import { makeGeminiAdapterLive } from "./provider/Layers/GeminiAdapter";
+import { HermesAdapterLive } from "./provider/Layers/HermesAdapter";
 import { makeOpenCodeAdapterLive } from "./provider/Layers/OpenCodeAdapter";
 import { ProviderAdapterRegistryLive } from "./provider/Layers/ProviderAdapterRegistry";
 import { makeProviderServiceLive } from "./provider/Layers/ProviderService";
@@ -97,8 +98,8 @@ export function makeServerProviderLayer(): Layer.Layer<
       Layer.provide(codexAdapterLayer),
       Layer.provide(claudeAdapterLayer),
       Layer.provide(geminiAdapterLayer),
-      Layer.provide(geminiAdapterLayer),
       Layer.provide(openCodeAdapterLayer),
+      Layer.provide(HermesAdapterLive),
       Layer.provideMerge(providerSessionDirectoryLayer),
     );
     const providerServiceLayer = makeProviderServiceLive(

@@ -34,7 +34,8 @@ type CustomModelSettingsKey =
   | "customCodexModels"
   | "customClaudeModels"
   | "customGeminiModels"
-  | "customOpenCodeModels";
+  | "customOpenCodeModels"
+  | "customHermesModels";
 const LEGACY_DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
 export type ProviderCustomModelConfig = {
   provider: ProviderKind;
@@ -51,6 +52,7 @@ const BUILT_IN_MODEL_SLUGS_BY_PROVIDER: Record<ProviderKind, ReadonlySet<string>
   claudeAgent: new Set(getModelOptions("claudeAgent").map((option) => option.slug)),
   gemini: new Set(getModelOptions("gemini").map((option) => option.slug)),
   opencode: new Set(getModelOptions("opencode").map((option) => option.slug)),
+  hermes: new Set(getModelOptions("hermes").map((option) => option.slug)),
 };
 
 const withDefaults =
@@ -78,6 +80,13 @@ export const AppSettingsSchema = Schema.Struct({
   openCodeServerPassword: Schema.String.check(Schema.isMaxLength(4096)).pipe(
     withDefaults(() => ""),
   ),
+  hermesSshHost: Schema.String.check(Schema.isMaxLength(256)).pipe(withDefaults(() => "mac-mini")),
+  hermesRemoteCwd: Schema.String.check(Schema.isMaxLength(4096)).pipe(
+    withDefaults(() => "~/.hermes-staging/hermes-agent"),
+  ),
+  hermesCommand: Schema.String.check(Schema.isMaxLength(4096)).pipe(
+    withDefaults(() => "./venv/bin/hermes"),
+  ),
   defaultThreadEnvMode: EnvMode.pipe(withDefaults(() => "local" as const satisfies EnvMode)),
   confirmThreadDelete: Schema.Boolean.pipe(withDefaults(() => true)),
   confirmThreadArchive: Schema.Boolean.pipe(withDefaults(() => false)),
@@ -99,6 +108,7 @@ export const AppSettingsSchema = Schema.Struct({
   customClaudeModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customGeminiModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   customOpenCodeModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
+  customHermesModels: Schema.Array(Schema.String).pipe(withDefaults(() => [])),
   textGenerationModel: Schema.optional(TrimmedNonEmptyString),
   uiFontFamily: Schema.String.check(Schema.isMaxLength(256)).pipe(withDefaults(() => "")),
   defaultProvider: ProviderKind.pipe(withDefaults(() => "codex" as const)),
@@ -147,6 +157,15 @@ const PROVIDER_CUSTOM_MODEL_CONFIG: Record<ProviderKind, ProviderCustomModelConf
     description: "Save additional OpenCode model slugs for the picker and provider runtime.",
     placeholder: "provider/model",
     example: "openai/gpt-5",
+  },
+  hermes: {
+    provider: "hermes",
+    settingsKey: "customHermesModels",
+    defaultSettingsKey: "customHermesModels",
+    title: "Hermes",
+    description: "Save additional Hermes model slugs passed through to the Mac Mini Hermes CLI.",
+    placeholder: "provider/model",
+    example: "anthropic/claude-sonnet-4.6",
   },
 };
 
@@ -197,6 +216,7 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     customClaudeModels: normalizeCustomModelSlugs(settings.customClaudeModels, "claudeAgent"),
     customGeminiModels: normalizeCustomModelSlugs(settings.customGeminiModels, "gemini"),
     customOpenCodeModels: normalizeCustomModelSlugs(settings.customOpenCodeModels, "opencode"),
+    customHermesModels: normalizeCustomModelSlugs(settings.customHermesModels, "hermes"),
   };
 }
 
@@ -231,6 +251,7 @@ export function getCustomModelsByProvider(
     claudeAgent: getCustomModelsForProvider(settings, "claudeAgent"),
     gemini: getCustomModelsForProvider(settings, "gemini"),
     opencode: getCustomModelsForProvider(settings, "opencode"),
+    hermes: getCustomModelsForProvider(settings, "hermes"),
   };
 }
 
@@ -328,6 +349,7 @@ export function getCustomModelOptionsByProvider(
     claudeAgent: getAppModelOptions("claudeAgent", customModelsByProvider.claudeAgent),
     gemini: getAppModelOptions("gemini", customModelsByProvider.gemini),
     opencode: getAppModelOptions("opencode", customModelsByProvider.opencode),
+    hermes: getAppModelOptions("hermes", customModelsByProvider.hermes),
   };
 }
 
@@ -341,6 +363,9 @@ export function getProviderStartOptions(
     | "openCodeBinaryPath"
     | "openCodeServerPassword"
     | "openCodeServerUrl"
+    | "hermesSshHost"
+    | "hermesRemoteCwd"
+    | "hermesCommand"
   >,
 ): ProviderStartOptions | undefined {
   const providerOptions: ProviderStartOptions = {
@@ -377,6 +402,15 @@ export function getProviderStartOptions(
           },
         }
       : {}),
+    ...(settings.hermesSshHost || settings.hermesRemoteCwd || settings.hermesCommand
+      ? {
+          hermes: {
+            ...(settings.hermesSshHost ? { sshHost: settings.hermesSshHost } : {}),
+            ...(settings.hermesRemoteCwd ? { remoteCwd: settings.hermesRemoteCwd } : {}),
+            ...(settings.hermesCommand ? { command: settings.hermesCommand } : {}),
+          },
+        }
+      : {}),
   };
 
   return Object.keys(providerOptions).length > 0 ? providerOptions : undefined;
@@ -398,6 +432,8 @@ export function getCustomBinaryPathForProvider(
       return settings.geminiBinaryPath;
     case "opencode":
       return settings.openCodeBinaryPath;
+    case "hermes":
+      return "";
   }
 }
 

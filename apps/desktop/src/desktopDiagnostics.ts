@@ -15,6 +15,7 @@ const DIAGNOSTIC_CLI_COMMANDS = [
   ["Claude", "claude"],
   ["Gemini", "gemini"],
   ["OpenCode", "opencode"],
+  ["Hermes", "ssh"],
 ] as const;
 
 export interface DesktopDiagnosticsInput {

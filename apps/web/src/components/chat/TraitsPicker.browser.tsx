@@ -39,7 +39,7 @@ function ClaudeTraitsPickerHarness(props: {
     selectedProvider: "claudeAgent",
     threadModelSelection: props.fallbackModelSelection,
     projectModelSelection: null,
-    customModelsByProvider: { codex: [], claudeAgent: [], gemini: [], opencode: [] },
+    customModelsByProvider: { codex: [], claudeAgent: [], gemini: [], opencode: [], hermes: [] },
   });
   const handlePromptChange = useCallback(
     (nextPrompt: string) => {
@@ -270,11 +270,11 @@ describe("TraitsPicker (Claude)", () => {
   it("shows the non-default context window in the trigger label", async () => {
     await using _ = await mountClaudePicker({
       model: "claude-opus-4-6",
-      options: { contextWindow: "1m" },
+      options: { contextWindow: "200k" },
     });
 
     await vi.waitFor(() => {
-      expect(document.body.textContent ?? "").toContain("1M");
+      expect(document.body.textContent ?? "").toContain("200k");
     });
   });
 
@@ -486,7 +486,7 @@ function OpenCodeTraitsPickerHarness(props: {
     selectedProvider: "opencode",
     threadModelSelection: props.fallbackModelSelection,
     projectModelSelection: null,
-    customModelsByProvider: { codex: [], claudeAgent: [], gemini: [], opencode: [] },
+    customModelsByProvider: { codex: [], claudeAgent: [], gemini: [], opencode: [], hermes: [] },
   });
   const handlePromptChange = useCallback(
     (nextPrompt: string) => {

@@ -38,6 +38,7 @@ export const PROVIDER_OPTIONS: Array<{
   { value: "claudeAgent", label: "Claudio", available: true },
   { value: "gemini", label: "Gemini", available: true },
   { value: "opencode", label: "OpenCode", available: true },
+  { value: "hermes", label: "Hermes", available: true },
 ];
 
 export interface WorkLogEntry {

@@ -62,9 +62,31 @@ const CODEX_PROVIDER = "codex" as const;
 const CLAUDE_AGENT_PROVIDER = "claudeAgent" as const;
 const GEMINI_PROVIDER = "gemini" as const;
 const OPENCODE_PROVIDER = "opencode" as const;
+const HERMES_PROVIDER = "hermes" as const;
+const HERMES_SSH_HOST = "mac-mini";
+const HERMES_REMOTE_CWD = "~/.hermes-staging/hermes-agent";
+const HERMES_REMOTE_COMMAND = "./venv/bin/hermes";
 type ProviderStatuses = ReadonlyArray<ServerProviderStatus>;
 
 // ── Pure helpers ────────────────────────────────────────────────────
+
+function shellQuote(value: string): string {
+  return `'${value.replace(/'/g, `'\\''`)}'`;
+}
+
+function shellQuoteRemotePath(value: string): string {
+  const trimmed = value.trim();
+  if (trimmed === "~" || trimmed === "$HOME" || trimmed === "${HOME}") {
+    return "$HOME";
+  }
+  for (const prefix of ["~/", "$HOME/", "${HOME}/"] as const) {
+    if (trimmed.startsWith(prefix)) {
+      const relativePath = trimmed.slice(prefix.length);
+      return relativePath.length > 0 ? `$HOME/${shellQuote(relativePath)}` : "$HOME";
+    }
+  }
+  return shellQuote(trimmed);
+}
 
 export interface CommandResult {
   readonly stdout: string;
@@ -728,6 +750,43 @@ const runOpenCodeCommand = (args: ReadonlyArray<string>) =>
     return { stdout, stderr, code: exitCode } satisfies CommandResult;
   }).pipe(Effect.scoped);
 
+const runHermesCommand = (args: ReadonlyArray<string>) =>
+  Effect.gen(function* () {
+    const spawner = yield* ChildProcessSpawner.ChildProcessSpawner;
+    const remoteCommand = [
+      "cd",
+      shellQuoteRemotePath(HERMES_REMOTE_CWD),
+      "&&",
+      shellQuote(HERMES_REMOTE_COMMAND),
+      ...args.map(shellQuote),
+    ].join(" ");
+    const command = ChildProcess.make(
+      "ssh",
+      ["-o", "BatchMode=yes", "-o", "ConnectTimeout=8", HERMES_SSH_HOST, remoteCommand],
+      {
+        shell: process.platform === "win32",
+        env: process.env,
+      },
+    );
+
+    const child = yield* spawner.spawn(command);
+
+    const [stdout, stderr, exitCode] = yield* Effect.all(
+      [
+        collectStreamAsString(child.stdout),
+        collectStreamAsString(child.stderr),
+        child.exitCode.pipe(Effect.map(Number)),
+      ],
+      { concurrency: "unbounded" },
+    );
+
+    if (isWindowsShellCommandMissingResult({ code: exitCode, stderr })) {
+      return yield* Effect.fail(new Error("spawn ssh ENOENT"));
+    }
+
+    return { stdout, stderr, code: exitCode } satisfies CommandResult;
+  }).pipe(Effect.scoped);
+
 // ── Health check ────────────────────────────────────────────────────
 
 export const checkCodexProviderStatus: Effect.Effect<
@@ -1218,6 +1277,71 @@ export const checkOpenCodeProviderStatus: Effect.Effect<
   } satisfies ServerProviderStatus;
 });
 
+// ── Hermes health check ─────────────────────────────────────────────
+
+export const checkHermesProviderStatus: Effect.Effect<
+  ServerProviderStatus,
+  never,
+  ChildProcessSpawner.ChildProcessSpawner
+> = Effect.gen(function* () {
+  const checkedAt = new Date().toISOString();
+
+  const versionProbe = yield* runHermesCommand(["--version"]).pipe(
+    Effect.timeoutOption(DEFAULT_TIMEOUT_MS),
+    Effect.result,
+  );
+
+  if (Result.isFailure(versionProbe)) {
+    const error = versionProbe.failure;
+    return {
+      provider: HERMES_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: isCommandMissingCause(error)
+        ? "Hermes remote check failed: `ssh mac-mini` is unavailable from this machine."
+        : `Failed to execute Hermes remote health check: ${error instanceof Error ? error.message : String(error)}.`,
+    } satisfies ServerProviderStatus;
+  }
+
+  if (Option.isNone(versionProbe.success)) {
+    return {
+      provider: HERMES_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: "Hermes remote check timed out over SSH to Mac Mini.",
+    } satisfies ServerProviderStatus;
+  }
+
+  const version = versionProbe.success.value;
+  if (version.code !== 0) {
+    const detail = detailFromResult(version);
+    return {
+      provider: HERMES_PROVIDER,
+      status: "error" as const,
+      available: false,
+      authStatus: "unknown" as const,
+      checkedAt,
+      message: detail
+        ? `Hermes remote CLI is reachable but failed to run. ${detail}`
+        : "Hermes remote CLI is reachable but failed to run.",
+    } satisfies ServerProviderStatus;
+  }
+
+  return {
+    provider: HERMES_PROVIDER,
+    status: "ready" as const,
+    available: true,
+    authStatus: "unknown" as const,
+    checkedAt,
+    message:
+      "Hermes remote CLI is reachable on Mac Mini. Hermes auth, tools, skills, and memory stay on that machine; the Telegram gateway is not managed by this provider.",
+  } satisfies ServerProviderStatus;
+});
+
 // ── Snapshot helpers ────────────────────────────────────────────────
 
 function providerStatusesEqual(left: ProviderStatuses, right: ProviderStatuses): boolean {
@@ -1257,7 +1381,13 @@ export const ProviderHealthLive = Layer.effect(
     yield* Effect.addFinalizer(() => Scope.close(refreshScope, Exit.void));
 
     const cachePathByProvider = new Map(
-      [CODEX_PROVIDER, CLAUDE_AGENT_PROVIDER, GEMINI_PROVIDER, OPENCODE_PROVIDER].map(
+      [
+        CODEX_PROVIDER,
+        CLAUDE_AGENT_PROVIDER,
+        GEMINI_PROVIDER,
+        OPENCODE_PROVIDER,
+        HERMES_PROVIDER,
+      ].map(
         (provider) =>
           [
             provider,
@@ -1270,7 +1400,13 @@ export const ProviderHealthLive = Layer.effect(
     );
 
     const cachedStatuses: ProviderStatuses = yield* Effect.forEach(
-      [CODEX_PROVIDER, CLAUDE_AGENT_PROVIDER, GEMINI_PROVIDER, OPENCODE_PROVIDER] as const,
+      [
+        CODEX_PROVIDER,
+        CLAUDE_AGENT_PROVIDER,
+        GEMINI_PROVIDER,
+        OPENCODE_PROVIDER,
+        HERMES_PROVIDER,
+      ] as const,
       (provider) =>
         readProviderStatusCache(cachePathByProvider.get(provider)!).pipe(
           Effect.provideService(FileSystem.FileSystem, fileSystem),
@@ -1308,6 +1444,7 @@ export const ProviderHealthLive = Layer.effect(
         checkClaude,
         checkGeminiProviderStatus,
         checkOpenCodeProviderStatus,
+        checkHermesProviderStatus,
       ],
       {
         concurrency: "unbounded",

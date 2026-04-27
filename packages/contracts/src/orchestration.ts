@@ -3,6 +3,7 @@ import {
   ClaudeModelOptions,
   CodexModelOptions,
   GeminiModelOptions,
+  HermesModelOptions,
   OpenCodeModelOptions,
 } from "./model";
 import { ProviderMentionReference, ProviderSkillReference } from "./providerDiscovery";
@@ -43,7 +44,13 @@ export const ORCHESTRATION_WS_CHANNELS = {
   threadEvent: "orchestration.threadEvent",
 } as const;
 
-export const ProviderKind = Schema.Literals(["codex", "claudeAgent", "gemini", "opencode"]);
+export const ProviderKind = Schema.Literals([
+  "codex",
+  "claudeAgent",
+  "gemini",
+  "opencode",
+  "hermes",
+]);
 export type ProviderKind = typeof ProviderKind.Type;
 export const ProviderApprovalPolicy = Schema.Literals([
   "untrusted",
@@ -88,11 +95,19 @@ export const OpenCodeModelSelection = Schema.Struct({
 });
 export type OpenCodeModelSelection = typeof OpenCodeModelSelection.Type;
 
+export const HermesModelSelection = Schema.Struct({
+  provider: Schema.Literal("hermes"),
+  model: TrimmedNonEmptyString,
+  options: Schema.optional(HermesModelOptions),
+});
+export type HermesModelSelection = typeof HermesModelSelection.Type;
+
 export const ModelSelection = Schema.Union([
   CodexModelSelection,
   ClaudeModelSelection,
   GeminiModelSelection,
   OpenCodeModelSelection,
+  HermesModelSelection,
 ]);
 export type ModelSelection = typeof ModelSelection.Type;
 
@@ -117,11 +132,18 @@ export const OpenCodeProviderStartOptions = Schema.Struct({
   serverPassword: Schema.optional(TrimmedNonEmptyString),
 });
 
+export const HermesProviderStartOptions = Schema.Struct({
+  sshHost: Schema.optional(TrimmedNonEmptyString),
+  remoteCwd: Schema.optional(TrimmedNonEmptyString),
+  command: Schema.optional(TrimmedNonEmptyString),
+});
+
 export const ProviderStartOptions = Schema.Struct({
   codex: Schema.optional(CodexProviderStartOptions),
   claudeAgent: Schema.optional(ClaudeProviderStartOptions),
   gemini: Schema.optional(GeminiProviderStartOptions),
   opencode: Schema.optional(OpenCodeProviderStartOptions),
+  hermes: Schema.optional(HermesProviderStartOptions),
 });
 export type ProviderStartOptions = typeof ProviderStartOptions.Type;
 

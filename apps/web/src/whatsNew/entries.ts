@@ -22,6 +22,24 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.38",
+    date: "Apr 27",
+    features: [
+      {
+        id: "hermes-remote-provider",
+        title: "Hermes can run from the Mac Mini",
+        description:
+          "Hermes is available as a provider that routes through SSH to the Mac Mini, preserving the existing Hermes tools, skills, auth, and session state on that machine.",
+      },
+      {
+        id: "hermes-telegram-safe-boundary",
+        title: "Hermes Telegram stays separate",
+        description:
+          "The Hermes provider path uses `hermes chat` only and does not start, stop, replace, or reconfigure the existing Hermes Telegram gateway.",
+      },
+    ],
+  },
+  {
     version: "0.0.37",
     date: "Apr 27",
     features: [

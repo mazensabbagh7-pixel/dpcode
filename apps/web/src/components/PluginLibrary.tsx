@@ -80,12 +80,14 @@ const PROVIDER_ICON: Record<ProviderKind, React.FC<React.SVGProps<SVGSVGElement>
   claudeAgent: ClaudeAI,
   gemini: Gemini,
   opencode: OpenCodeIcon,
+  hermes: OpenCodeIcon,
 };
 const PROVIDER_DISCOVERY_ORDER: ReadonlyArray<ProviderKind> = [
   "codex",
   "claudeAgent",
   "gemini",
   "opencode",
+  "hermes",
 ];
 const KNOWN_PLUGIN_BRANDS: Record<string, PluginBrandArtwork> = {
   canva: { icon: SiCanva, color: "#00C4CC" },
@@ -386,6 +388,7 @@ export function PluginLibrary() {
   const claudeCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("claudeAgent"));
   const geminiCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("gemini"));
   const openCodeCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("opencode"));
+  const hermesCapabilitiesQuery = useQuery(providerComposerCapabilitiesQueryOptions("hermes"));
 
   const providerCapabilities = useMemo<Record<ProviderKind, ProviderCapabilities>>(
     () => ({
@@ -405,11 +408,16 @@ export function PluginLibrary() {
         plugins: supportsPluginDiscovery(openCodeCapabilitiesQuery.data),
         skills: supportsSkillDiscovery(openCodeCapabilitiesQuery.data),
       },
+      hermes: {
+        plugins: supportsPluginDiscovery(hermesCapabilitiesQuery.data),
+        skills: supportsSkillDiscovery(hermesCapabilitiesQuery.data),
+      },
     }),
     [
       claudeCapabilitiesQuery.data,
       codexCapabilitiesQuery.data,
       geminiCapabilitiesQuery.data,
+      hermesCapabilitiesQuery.data,
       openCodeCapabilitiesQuery.data,
     ],
   );

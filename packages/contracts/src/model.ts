@@ -50,11 +50,15 @@ export const OpenCodeModelOptions = Schema.Struct({
 });
 export type OpenCodeModelOptions = typeof OpenCodeModelOptions.Type;
 
+export const HermesModelOptions = Schema.Struct({});
+export type HermesModelOptions = typeof HermesModelOptions.Type;
+
 export const ProviderModelOptions = Schema.Struct({
   codex: Schema.optional(CodexModelOptions),
   claudeAgent: Schema.optional(ClaudeModelOptions),
   gemini: Schema.optional(GeminiModelOptions),
   opencode: Schema.optional(OpenCodeModelOptions),
+  hermes: Schema.optional(HermesModelOptions),
 });
 export type ProviderModelOptions = typeof ProviderModelOptions.Type;
 
@@ -346,6 +350,19 @@ export const MODEL_OPTIONS_BY_PROVIDER = {
       },
     },
   ],
+  hermes: [
+    {
+      slug: "hermes-default",
+      name: "Hermes Default",
+      capabilities: {
+        reasoningEffortLevels: [],
+        supportsFastMode: false,
+        supportsThinkingToggle: false,
+        promptInjectedEffortLevels: [],
+        contextWindowOptions: [],
+      },
+    },
+  ],
 } as const satisfies Record<ProviderKind, readonly ModelDefinition[]>;
 export type ModelOptionsByProvider = typeof MODEL_OPTIONS_BY_PROVIDER;
 
@@ -357,6 +374,7 @@ export const DEFAULT_MODEL_BY_PROVIDER: Record<ProviderKind, ModelSlug> = {
   claudeAgent: "claude-sonnet-4-6",
   gemini: "auto-gemini-3",
   opencode: "openai/gpt-5",
+  hermes: "hermes-default",
 };
 
 // Backward compatibility for existing Codex-only call sites.
@@ -406,6 +424,10 @@ export const MODEL_SLUG_ALIASES_BY_PROVIDER: Record<ProviderKind, Record<string,
     "gemini-2.5-flash-lite": "gemini-2.5-flash-lite",
   },
   opencode: {},
+  hermes: {
+    default: "hermes-default",
+    hermes: "hermes-default",
+  },
 };
 
 // ── Agent mention aliases ─────────────────────────────────────────────
@@ -437,4 +459,5 @@ export const PROVIDER_DISPLAY_NAMES: Record<ProviderKind, string> = {
   claudeAgent: "Claude",
   gemini: "Gemini",
   opencode: "OpenCode",
+  hermes: "Hermes",
 };

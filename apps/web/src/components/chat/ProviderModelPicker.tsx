@@ -43,6 +43,7 @@ const PROVIDER_ICON_BY_PROVIDER: Record<ProviderPickerKind, Icon> = {
   claudeAgent: ClaudeAI,
   gemini: Gemini,
   opencode: OpenCodeIcon,
+  hermes: OpenCodeIcon,
 };
 
 function resolveLiveProviderAvailability(provider: ServerProviderStatus | undefined): {

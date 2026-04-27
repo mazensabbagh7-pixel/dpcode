@@ -407,6 +407,7 @@ function SettingsRouteView() {
     opencode: Boolean(
       settings.openCodeBinaryPath || settings.openCodeServerUrl || settings.openCodeServerPassword,
     ),
+    hermes: Boolean(settings.hermesSshHost || settings.hermesRemoteCwd || settings.hermesCommand),
   });
   const [selectedCustomModelProvider, setSelectedCustomModelProvider] =
     useState<ProviderKind>("codex");
@@ -417,6 +418,7 @@ function SettingsRouteView() {
     claudeAgent: "",
     gemini: "",
     opencode: "",
+    hermes: "",
   });
   const [customModelErrorByProvider, setCustomModelErrorByProvider] = useState<
     Partial<Record<ProviderKind, string | null>>
@@ -434,6 +436,9 @@ function SettingsRouteView() {
   const openCodeBinaryPath = settings.openCodeBinaryPath;
   const openCodeServerUrl = settings.openCodeServerUrl;
   const openCodeServerPassword = settings.openCodeServerPassword;
+  const hermesSshHost = settings.hermesSshHost;
+  const hermesRemoteCwd = settings.hermesRemoteCwd;
+  const hermesCommand = settings.hermesCommand;
   const keybindingsConfigPath = serverConfigQuery.data?.keybindingsConfigPath ?? null;
   const availableEditors = serverConfigQuery.data?.availableEditors;
   const desktopDiagnostics = desktopDiagnosticsQuery.data;
@@ -512,7 +517,10 @@ function SettingsRouteView() {
     settings.codexHomePath !== defaults.codexHomePath ||
     settings.openCodeBinaryPath !== defaults.openCodeBinaryPath ||
     settings.openCodeServerUrl !== defaults.openCodeServerUrl ||
-    settings.openCodeServerPassword !== defaults.openCodeServerPassword;
+    settings.openCodeServerPassword !== defaults.openCodeServerPassword ||
+    settings.hermesSshHost !== defaults.hermesSshHost ||
+    settings.hermesRemoteCwd !== defaults.hermesRemoteCwd ||
+    settings.hermesCommand !== defaults.hermesCommand;
 
   const copyDesktopDiagnostics = useCallback(async () => {
     if (!desktopDiagnostics) return;
@@ -576,7 +584,8 @@ function SettingsRouteView() {
     ...(settings.customCodexModels.length > 0 ||
     settings.customClaudeModels.length > 0 ||
     settings.customGeminiModels.length > 0 ||
-    settings.customOpenCodeModels.length > 0
+    settings.customOpenCodeModels.length > 0 ||
+    settings.customHermesModels.length > 0
       ? ["Custom models"]
       : []),
     ...(isInstallSettingsDirty ? ["Provider installs"] : []),
@@ -692,6 +701,7 @@ function SettingsRouteView() {
       claudeAgent: false,
       gemini: false,
       opencode: false,
+      hermes: false,
     });
     setSelectedCustomModelProvider("codex");
     setCustomModelInputByProvider({
@@ -699,6 +709,7 @@ function SettingsRouteView() {
       claudeAgent: "",
       gemini: "",
       opencode: "",
+      hermes: "",
     });
     setCustomModelErrorByProvider({});
     setShowAllCustomModels(false);
@@ -2188,12 +2199,16 @@ function SettingsRouteView() {
                       openCodeBinaryPath: defaults.openCodeBinaryPath,
                       openCodeServerUrl: defaults.openCodeServerUrl,
                       openCodeServerPassword: defaults.openCodeServerPassword,
+                      hermesSshHost: defaults.hermesSshHost,
+                      hermesRemoteCwd: defaults.hermesRemoteCwd,
+                      hermesCommand: defaults.hermesCommand,
                     });
                     setOpenInstallProviders({
                       codex: false,
                       claudeAgent: false,
                       gemini: false,
                       opencode: false,
+                      hermes: false,
                     });
                   }}
                 />
@@ -2383,6 +2398,112 @@ function SettingsRouteView() {
                     </Collapsible>
                   );
                 })}
+                <Collapsible
+                  open={openInstallProviders.hermes}
+                  onOpenChange={(open) =>
+                    setOpenInstallProviders((existing) => ({
+                      ...existing,
+                      hermes: open,
+                    }))
+                  }
+                >
+                  <div className="overflow-hidden rounded-xl border border-border/70">
+                    <button
+                      type="button"
+                      className="flex w-full items-center gap-3 px-4 py-3 text-left"
+                      onClick={() =>
+                        setOpenInstallProviders((existing) => ({
+                          ...existing,
+                          hermes: !existing.hermes,
+                        }))
+                      }
+                    >
+                      <span className="min-w-0 flex-1 text-sm font-medium text-foreground">
+                        Hermes
+                      </span>
+                      {settings.hermesSshHost !== defaults.hermesSshHost ||
+                      settings.hermesRemoteCwd !== defaults.hermesRemoteCwd ||
+                      settings.hermesCommand !== defaults.hermesCommand ? (
+                        <span className="text-[11px] text-muted-foreground">Custom</span>
+                      ) : null}
+                      <ChevronDownIcon
+                        className={cn(
+                          "size-4 shrink-0 text-muted-foreground transition-transform",
+                          openInstallProviders.hermes && "rotate-180",
+                        )}
+                      />
+                    </button>
+
+                    <CollapsibleContent>
+                      <div className="border-t border-border/70 px-4 py-4">
+                        <div className="space-y-3">
+                          <label htmlFor="provider-install-hermes-host" className="block">
+                            <span className="block text-xs font-medium text-foreground">
+                              Mac Mini SSH host
+                            </span>
+                            <Input
+                              id="provider-install-hermes-host"
+                              className="mt-1"
+                              value={hermesSshHost}
+                              onChange={(event) =>
+                                updateSettings({ hermesSshHost: event.target.value })
+                              }
+                              placeholder="mac-mini"
+                              spellCheck={false}
+                            />
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              Hermes runs over SSH from this machine; leave as mac-mini for the
+                              current setup.
+                            </span>
+                          </label>
+
+                          <label htmlFor="provider-install-hermes-cwd" className="block">
+                            <span className="block text-xs font-medium text-foreground">
+                              Hermes remote folder
+                            </span>
+                            <Input
+                              id="provider-install-hermes-cwd"
+                              className="mt-1"
+                              value={hermesRemoteCwd}
+                              onChange={(event) =>
+                                updateSettings({ hermesRemoteCwd: event.target.value })
+                              }
+                              placeholder="~/.hermes-staging/hermes-agent"
+                              spellCheck={false}
+                            />
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              This is the Mac Mini Hermes repo used for skills, tools, auth, and
+                              session state.
+                            </span>
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              MazenCode uses Hermes chat only; it does not start, stop, or replace
+                              the Hermes Telegram gateway.
+                            </span>
+                          </label>
+
+                          <label htmlFor="provider-install-hermes-command" className="block">
+                            <span className="block text-xs font-medium text-foreground">
+                              Hermes command
+                            </span>
+                            <Input
+                              id="provider-install-hermes-command"
+                              className="mt-1"
+                              value={hermesCommand}
+                              onChange={(event) =>
+                                updateSettings({ hermesCommand: event.target.value })
+                              }
+                              placeholder="./venv/bin/hermes"
+                              spellCheck={false}
+                            />
+                            <span className="mt-1 block text-xs text-muted-foreground">
+                              The command is executed on the Mac Mini, not on this laptop.
+                            </span>
+                          </label>
+                        </div>
+                      </div>
+                    </CollapsibleContent>
+                  </div>
+                </Collapsible>
               </div>
             </div>
           </SettingsRow>

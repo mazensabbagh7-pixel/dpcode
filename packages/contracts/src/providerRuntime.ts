@@ -28,6 +28,8 @@ const RuntimeEventRawSource = Schema.Literals([
   "gemini.acp.stdout",
   "gemini.acp.stderr",
   "opencode.sdk.event",
+  "hermes.ssh.stdout",
+  "hermes.ssh.stderr",
 ]);
 export type RuntimeEventRawSource = typeof RuntimeEventRawSource.Type;
 
