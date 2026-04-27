@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.39",
+    date: "Apr 27",
+    features: [
+      {
+        id: "hermes-session-reopen-hotfix",
+        title: "Hermes sessions reopen correctly",
+        description:
+          "Hermes provider sessions now decode from persisted runtime state after restart, fixing the turn-start error seen in the first 0.0.38 build.",
+      },
+    ],
+  },
+  {
     version: "0.0.38",
     date: "Apr 27",
     features: [
