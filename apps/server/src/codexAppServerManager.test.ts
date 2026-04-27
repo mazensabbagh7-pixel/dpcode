@@ -73,7 +73,6 @@ function createSendTurnHarness(runtimeMode: "approval-required" | "full-access" 
     collabReceiverTurns: new Map(),
     collabReceiverParents: new Map(),
     reviewTurnIds: new Set<string>(),
-    acceptedTurnIds: new Set<string>(),
   };
 
   const requireSession = vi
@@ -116,7 +115,6 @@ function createThreadControlHarness() {
     collabReceiverTurns: new Map(),
     collabReceiverParents: new Map(),
     reviewTurnIds: new Set<string>(),
-    acceptedTurnIds: new Set<string>(),
   };
 
   const requireSession = vi
@@ -166,7 +164,6 @@ function createPendingUserInputHarness() {
     collabReceiverTurns: new Map(),
     collabReceiverParents: new Map(),
     reviewTurnIds: new Set<string>(),
-    acceptedTurnIds: new Set<string>(),
   };
 
   const requireSession = vi
@@ -210,7 +207,6 @@ function createCollabNotificationHarness() {
     collabReceiverTurns: new Map<string, string>(),
     collabReceiverParents: new Map<string, string>(),
     reviewTurnIds: new Set<string>(),
-    acceptedTurnIds: new Set<string>(["turn_parent"]),
     nextRequestId: 1,
     stopping: false,
   };
@@ -238,7 +234,6 @@ function createProcessOutputHarness() {
       updatedAt: "2026-02-10T00:00:00.000Z",
     },
     reviewTurnIds: new Set<string>(),
-    acceptedTurnIds: new Set<string>(),
     stopping: false,
   };
   const emitEvent = vi
@@ -594,7 +589,6 @@ describe("sendTurn", () => {
       activeTurnId: "turn_1",
       resumeCursor: { threadId: "thread_1" },
     });
-    expect(context.acceptedTurnIds.has("turn_1")).toBe(true);
   });
 
   it("uses approval-required Codex overrides on turn/start", async () => {
@@ -1916,7 +1910,7 @@ describe("respondToUserInput", () => {
 });
 
 describe("collab child conversation routing", () => {
-  it("suppresses main-thread notifications for unaccepted resumed turns", () => {
+  it("preserves main-thread resume notifications so Codex history can hydrate", () => {
     const { manager, context, emitEvent, updateSession } = createCollabNotificationHarness();
 
     (
@@ -1931,8 +1925,20 @@ describe("collab child conversation routing", () => {
       },
     });
 
-    expect(emitEvent).not.toHaveBeenCalled();
-    expect(updateSession).not.toHaveBeenCalled();
+    expect(emitEvent).toHaveBeenCalledWith(
+      expect.objectContaining({
+        method: "turn/started",
+        threadId: context.session.threadId,
+        turnId: "turn_stale_resume",
+      }),
+    );
+    expect(updateSession).toHaveBeenCalledWith(
+      context,
+      expect.objectContaining({
+        status: "running",
+        activeTurnId: "turn_stale_resume",
+      }),
+    );
   });
 
   it("preserves child notification turn ids and annotates the parent turn", () => {
