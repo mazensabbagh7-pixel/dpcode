@@ -1735,15 +1735,17 @@ describe("hasLiveTurnTailWork", () => {
 });
 
 describe("PROVIDER_OPTIONS", () => {
-  it("lists Codex, Claudio, Gemini, and OpenCode as available providers", () => {
+  it("lists available providers", () => {
     const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeAgent");
     const gemini = PROVIDER_OPTIONS.find((option) => option.value === "gemini");
     const opencode = PROVIDER_OPTIONS.find((option) => option.value === "opencode");
+    const hermes = PROVIDER_OPTIONS.find((option) => option.value === "hermes");
     expect(PROVIDER_OPTIONS).toEqual([
       { value: "codex", label: "Codex", available: true },
       { value: "claudeAgent", label: "Claudio", available: true },
       { value: "gemini", label: "Gemini", available: true },
       { value: "opencode", label: "OpenCode", available: true },
+      { value: "hermes", label: "Hermes", available: true },
     ]);
     expect(claude).toEqual({
       value: "claudeAgent",
@@ -1758,6 +1760,11 @@ describe("PROVIDER_OPTIONS", () => {
     expect(opencode).toEqual({
       value: "opencode",
       label: "OpenCode",
+      available: true,
+    });
+    expect(hermes).toEqual({
+      value: "hermes",
+      label: "Hermes",
       available: true,
     });
   });
