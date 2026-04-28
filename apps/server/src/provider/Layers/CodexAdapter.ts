@@ -45,6 +45,7 @@ import {
 import { resolveAttachmentPath } from "../../attachmentStore.ts";
 import { isNonFatalCodexErrorMessage } from "../../codexErrorClassification.ts";
 import { ServerConfig } from "../../config.ts";
+import { extractProposedPlanMarkdown } from "../planMode.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
 const PROVIDER = "codex" as const;
@@ -464,14 +465,6 @@ function contentStreamKindFromMethod(
   }
 }
 
-const PROPOSED_PLAN_BLOCK_REGEX = /<proposed_plan>\s*([\s\S]*?)\s*<\/proposed_plan>/i;
-
-function extractProposedPlanMarkdown(text: string | undefined): string | undefined {
-  const match = text ? PROPOSED_PLAN_BLOCK_REGEX.exec(text) : null;
-  const planMarkdown = match?.[1]?.trim();
-  return planMarkdown && planMarkdown.length > 0 ? planMarkdown : undefined;
-}
-
 function asRuntimeItemId(itemId: ProviderItemId): RuntimeItemId {
   return RuntimeItemId.makeUnsafe(itemId);
 }
@@ -876,16 +869,16 @@ function mapToRuntimeEvents(
     return [
       {
         ...runtimeEventBase(event, canonicalThreadId),
-        type: "turn.plan.updated",
+        type: "turn.tasks.updated",
         payload: {
           ...(asString(payload?.explanation)
             ? { explanation: asString(payload?.explanation) }
             : {}),
-          plan: steps
+          tasks: steps
             .map((entry) => asObject(entry))
             .filter((entry): entry is Record<string, unknown> => entry !== undefined)
             .map((entry) => ({
-              step: asString(entry.step) ?? "step",
+              task: asString(entry.step) ?? "task",
               status:
                 entry.status === "completed" || entry.status === "inProgress"
                   ? entry.status

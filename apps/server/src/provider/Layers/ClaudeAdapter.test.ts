@@ -1756,13 +1756,13 @@ describe("ClaudeAdapterLive", () => {
       } as unknown as SDKMessage);
 
       const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-      const planEvent = runtimeEvents.find((event) => event.type === "turn.plan.updated");
-      assert.equal(planEvent?.type, "turn.plan.updated");
-      if (planEvent?.type === "turn.plan.updated") {
-        assert.deepEqual(planEvent.payload.plan, [
-          { step: "Inspecting files", status: "inProgress" },
-          { step: "Patch UI", status: "pending" },
-          { step: "Run checks", status: "completed" },
+      const taskEvent = runtimeEvents.find((event) => event.type === "turn.tasks.updated");
+      assert.equal(taskEvent?.type, "turn.tasks.updated");
+      if (taskEvent?.type === "turn.tasks.updated") {
+        assert.deepEqual(taskEvent.payload.tasks, [
+          { task: "Inspecting files", status: "inProgress" },
+          { task: "Patch UI", status: "pending" },
+          { task: "Run checks", status: "completed" },
         ]);
       }
     }).pipe(
@@ -1771,7 +1771,7 @@ describe("ClaudeAdapterLive", () => {
     );
   });
 
-  it.effect("updates shared turn plans from Claude TodoWrite json deltas", () => {
+  it.effect("updates shared turn task lists from Claude TodoWrite json deltas", () => {
     const harness = makeHarness();
     return Effect.gen(function* () {
       const adapter = yield* ClaudeAdapter;
@@ -1827,12 +1827,12 @@ describe("ClaudeAdapterLive", () => {
       } as unknown as SDKMessage);
 
       const runtimeEvents = Array.from(yield* Fiber.join(runtimeEventsFiber));
-      const planEvent = runtimeEvents.findLast((event) => event.type === "turn.plan.updated");
-      assert.equal(planEvent?.type, "turn.plan.updated");
-      if (planEvent?.type === "turn.plan.updated") {
-        assert.deepEqual(planEvent.payload.plan, [
-          { step: "Inspect files", status: "pending" },
-          { step: "Patching UI", status: "inProgress" },
+      const taskEvent = runtimeEvents.findLast((event) => event.type === "turn.tasks.updated");
+      assert.equal(taskEvent?.type, "turn.tasks.updated");
+      if (taskEvent?.type === "turn.tasks.updated") {
+        assert.deepEqual(taskEvent.payload.tasks, [
+          { task: "Inspect files", status: "pending" },
+          { task: "Patching UI", status: "inProgress" },
         ]);
       }
     }).pipe(
@@ -3503,6 +3503,12 @@ describe("ClaudeAdapterLive", () => {
       });
 
       assert.deepEqual(harness.query.setPermissionModeCalls, ["plan"]);
+      const promptText = yield* Effect.promise(() =>
+        readFirstPromptText(harness.getLastCreateQueryInput()),
+      );
+      assert.include(promptText ?? "", "DP Code plan mode is active.");
+      assert.include(promptText ?? "", "<proposed_plan>");
+      assert.include(promptText ?? "", "User request:\nplan this for me");
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),
@@ -3715,6 +3721,70 @@ describe("ClaudeAdapterLive", () => {
       assert.deepEqual(proposedEvent.value.providerRefs, {
         providerItemId: ProviderItemId.makeUnsafe("tool-exit-2"),
       });
+    }).pipe(
+      Effect.provideService(Random.Random, makeDeterministicRandomService()),
+      Effect.provide(harness.layer),
+    );
+  });
+
+  it.effect("extracts proposed plans from assistant tagged markdown snapshots", () => {
+    const harness = makeHarness();
+    return Effect.gen(function* () {
+      const adapter = yield* ClaudeAdapter;
+
+      const session = yield* adapter.startSession({
+        threadId: THREAD_ID,
+        provider: "claudeAgent",
+        runtimeMode: "full-access",
+      });
+
+      yield* Stream.take(adapter.streamEvents, 3).pipe(Stream.runDrain);
+
+      yield* adapter.sendTurn({
+        threadId: session.threadId,
+        input: "plan this",
+        interactionMode: "plan",
+        attachments: [],
+      });
+      yield* Stream.take(adapter.streamEvents, 1).pipe(Stream.runDrain);
+
+      const proposedEventFiber = yield* Stream.filter(
+        adapter.streamEvents,
+        (event) => event.type === "turn.proposed.completed",
+      ).pipe(Stream.runHead, Effect.forkChild);
+
+      harness.query.emit({
+        type: "assistant",
+        session_id: "sdk-session-tagged-plan",
+        uuid: "assistant-tagged-plan",
+        parent_tool_use_id: null,
+        message: {
+          model: "claude-opus-4-6",
+          id: "msg-tagged-plan",
+          type: "message",
+          role: "assistant",
+          content: [
+            {
+              type: "text",
+              text: "Here is the plan.\n<proposed_plan>\n# Tagged plan\n\n- capture it\n</proposed_plan>",
+            },
+          ],
+          stop_reason: null,
+          stop_sequence: null,
+          usage: {},
+        },
+      } as unknown as SDKMessage);
+
+      const proposedEvent = yield* Fiber.join(proposedEventFiber);
+      assert.equal(proposedEvent._tag, "Some");
+      if (proposedEvent._tag !== "Some") {
+        return;
+      }
+      assert.equal(proposedEvent.value.type, "turn.proposed.completed");
+      if (proposedEvent.value.type !== "turn.proposed.completed") {
+        return;
+      }
+      assert.equal(proposedEvent.value.payload.planMarkdown, "# Tagged plan\n\n- capture it");
     }).pipe(
       Effect.provideService(Random.Random, makeDeterministicRandomService()),
       Effect.provide(harness.layer),

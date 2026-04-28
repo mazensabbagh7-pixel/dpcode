@@ -213,22 +213,28 @@ export function ThemePackEditor({
         </ThemeRow>
 
         <ThemeRow label="UI font">
-          <FontInput
-            value={theme.fonts.ui ?? ""}
-            placeholder="System default"
-            ariaLabel={`${titleLabel} UI font`}
-            onChange={(next) => updateThemeFonts(variant, { ui: next.length > 0 ? next : null })}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <FontInput
+              value={theme.fonts.ui ?? ""}
+              placeholder="System default"
+              ariaLabel={`${titleLabel} UI font`}
+              onChange={(next) => updateThemeFonts(variant, { ui: next.length > 0 ? next : null })}
+            />
+          </div>
         </ThemeRow>
 
         <ThemeRow label="Code font">
-          <FontInput
-            value={theme.fonts.code ?? ""}
-            placeholder='"JetBrains Mono"'
-            ariaLabel={`${titleLabel} code font`}
-            mono
-            onChange={(next) => updateThemeFonts(variant, { code: next.length > 0 ? next : null })}
-          />
+          <div className="flex flex-col items-end gap-1">
+            <FontInput
+              value={theme.fonts.code ?? ""}
+              placeholder='"JetBrains Mono"'
+              ariaLabel={`${titleLabel} code font`}
+              mono
+              onChange={(next) =>
+                updateThemeFonts(variant, { code: next.length > 0 ? next : null })
+              }
+            />
+          </div>
         </ThemeRow>
 
         <ThemeRow label="Contrast">

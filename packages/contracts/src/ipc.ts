@@ -18,10 +18,15 @@ import type {
   GitPullResult,
   GitReadWorkingTreeDiffInput,
   GitReadWorkingTreeDiffResult,
+  GitRemoveIndexLockInput,
   GitRemoveWorktreeInput,
   GitResolvePullRequestResult,
   GitRunStackedActionInput,
   GitRunStackedActionResult,
+  GitStashAndCheckoutInput,
+  GitStashDropInput,
+  GitStashInfoInput,
+  GitStashInfoResult,
   GitStatusInput,
   GitStatusResult,
   GitSummarizeDiffInput,
@@ -301,6 +306,11 @@ export interface DesktopNotificationInput {
 export interface DesktopBridge {
   getWsUrl: () => string | null;
   pickFolder: () => Promise<string | null>;
+  saveFile?: (input: {
+    defaultFilename: string;
+    contents: string;
+    filters?: ReadonlyArray<{ name: string; extensions: ReadonlyArray<string> }>;
+  }) => Promise<string | null>;
   confirm: (message: string) => Promise<boolean>;
   setTheme: (theme: DesktopTheme) => Promise<void>;
   showContextMenu: <T extends string>(
@@ -352,6 +362,11 @@ export interface DesktopBridge {
 export interface NativeApi {
   dialogs: {
     pickFolder: () => Promise<string | null>;
+    saveFile?: (input: {
+      defaultFilename: string;
+      contents: string;
+      filters?: ReadonlyArray<{ name: string; extensions: ReadonlyArray<string> }>;
+    }) => Promise<string | null>;
     confirm: (message: string) => Promise<boolean>;
   };
   terminal: {
@@ -389,6 +404,10 @@ export interface NativeApi {
     removeWorktree: (input: GitRemoveWorktreeInput) => Promise<void>;
     createBranch: (input: GitCreateBranchInput) => Promise<void>;
     checkout: (input: GitCheckoutInput) => Promise<void>;
+    stashAndCheckout: (input: GitStashAndCheckoutInput) => Promise<void>;
+    stashDrop: (input: GitStashDropInput) => Promise<void>;
+    stashInfo: (input: GitStashInfoInput) => Promise<GitStashInfoResult>;
+    removeIndexLock: (input: GitRemoveIndexLockInput) => Promise<void>;
     init: (input: GitInitInput) => Promise<void>;
     handoffThread: (input: GitHandoffThreadInput) => Promise<GitHandoffThreadResult>;
     resolvePullRequest: (input: GitPullRequestRefInput) => Promise<GitResolvePullRequestResult>;

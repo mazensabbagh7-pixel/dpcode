@@ -2,7 +2,7 @@
 // Purpose: Validates Remodex-style WAV payloads and proxies them to ChatGPT transcription.
 // Layer: Server utility
 // Exports: transcribeVoiceWithChatGptSession
-// Depends on: OpenAI/ChatGPT session auth supplied by Codex app-server callers.
+// Depends on: ChatGPT session auth supplied by Codex app-server callers.
 
 import { Buffer } from "node:buffer";
 

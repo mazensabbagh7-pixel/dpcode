@@ -90,6 +90,7 @@ import {
   ProviderAdapterValidationError,
   type ProviderAdapterError,
 } from "../Errors.ts";
+import { extractProposedPlanMarkdown, withProviderPlanModePrompt } from "../planMode.ts";
 import { ClaudeAdapter, type ClaudeAdapterShape } from "../Services/ClaudeAdapter.ts";
 import { type EventNdjsonLogger, makeEventNdjsonLogger } from "./EventNdjsonLogger.ts";
 
@@ -119,6 +120,7 @@ interface ClaudeResumeState {
 interface ClaudeTurnState {
   readonly turnId: TurnId;
   readonly startedAt: string;
+  readonly interactionMode: "default" | "plan";
   readonly items: Array<unknown>;
   readonly assistantTextBlocks: Map<number, AssistantTextBlockState>;
   readonly assistantTextBlockOrder: Array<AssistantTextBlockState>;
@@ -614,7 +616,6 @@ function summarizeToolRequest(toolName: string, input: Record<string, unknown>):
   return `${toolName}: ${serialized.slice(0, 397)}...`;
 }
 
-// Claude TodoWrite becomes the shared plan checklist that both providers feed into the same UI.
 function normalizeClaudeTodoStatus(value: unknown): "pending" | "inProgress" | "completed" {
   if (value === "completed") {
     return "completed";
@@ -625,9 +626,9 @@ function normalizeClaudeTodoStatus(value: unknown): "pending" | "inProgress" | "
   return "pending";
 }
 
-function normalizeClaudeTodoPlan(input: Record<string, unknown>): {
-  readonly plan: ReadonlyArray<{
-    readonly step: string;
+function normalizeClaudeTodoTasks(input: Record<string, unknown>): {
+  readonly tasks: ReadonlyArray<{
+    readonly task: string;
     readonly status: "pending" | "inProgress" | "completed";
   }>;
 } | null {
@@ -636,7 +637,7 @@ function normalizeClaudeTodoPlan(input: Record<string, unknown>): {
     return null;
   }
 
-  const plan = todos
+  const tasks = todos
     .map((entry) => {
       if (!entry || typeof entry !== "object") {
         return null;
@@ -645,25 +646,25 @@ function normalizeClaudeTodoPlan(input: Record<string, unknown>): {
       const status = normalizeClaudeTodoStatus(todo.status);
       const content = trimOrNull(typeof todo.content === "string" ? todo.content : null);
       const activeForm = trimOrNull(typeof todo.activeForm === "string" ? todo.activeForm : null);
-      const step = status === "inProgress" ? (activeForm ?? content) : (content ?? activeForm);
-      if (!step) {
+      const task = status === "inProgress" ? (activeForm ?? content) : (content ?? activeForm);
+      if (!task) {
         return null;
       }
       return {
-        step,
+        task,
         status,
       };
     })
     .filter(
       (
-        step,
-      ): step is {
-        readonly step: string;
+        task,
+      ): task is {
+        readonly task: string;
         readonly status: "pending" | "inProgress" | "completed";
-      } => step !== null,
+      } => task !== null,
     );
 
-  return plan.length > 0 ? { plan } : null;
+  return tasks.length > 0 ? { tasks } : null;
 }
 
 function titleForTool(itemType: CanonicalItemType): string {
@@ -745,7 +746,10 @@ function buildPromptText(input: ProviderSendTurnInput): string {
       : requestedEffort && hasEffortLevel(caps, requestedEffort)
         ? requestedEffort
         : null;
-  return applyClaudePromptEffortPrefix(basePrompt, promptEffort);
+  return withProviderPlanModePrompt({
+    text: applyClaudePromptEffortPrefix(basePrompt, promptEffort),
+    interactionMode: input.interactionMode,
+  });
 }
 
 function buildUserMessage(input: {
@@ -1634,8 +1638,8 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
         });
       });
 
-    // Normalizes Claude TodoWrite tool calls into the same runtime plan event Codex already emits.
-    const emitTodoPlanUpdated = (
+    // Normalizes Claude TodoWrite tool calls into the shared runtime task-list event.
+    const emitTodoTasksUpdated = (
       context: ClaudeSessionContext,
       input: {
         readonly toolInput: Record<string, unknown>;
@@ -1650,20 +1654,20 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
           return;
         }
 
-        const planPayload = normalizeClaudeTodoPlan(input.toolInput);
-        if (!planPayload) {
+        const tasksPayload = normalizeClaudeTodoTasks(input.toolInput);
+        if (!tasksPayload) {
           return;
         }
 
         const stamp = yield* makeEventStamp();
         yield* offerRuntimeEvent({
-          type: "turn.plan.updated",
+          type: "turn.tasks.updated",
           eventId: stamp.eventId,
           provider: PROVIDER,
           createdAt: stamp.createdAt,
           threadId: context.session.threadId,
           turnId: turnState.turnId,
-          payload: planPayload,
+          payload: tasksPayload,
           providerRefs: nativeProviderRefs(context, {
             providerItemId: input.toolUseId,
           }),
@@ -2001,7 +2005,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
               },
             });
             if (nextTool.toolName === "TodoWrite") {
-              yield* emitTodoPlanUpdated(context, {
+              yield* emitTodoTasksUpdated(context, {
                 toolInput: nextTool.input,
                 toolUseId: nextTool.itemId,
                 rawMethod: "claude/stream_event/content_block_delta/input_json_delta",
@@ -2077,7 +2081,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
             },
           });
           if (toolName === "TodoWrite") {
-            yield* emitTodoPlanUpdated(context, {
+            yield* emitTodoTasksUpdated(context, {
               toolInput,
               toolUseId: tool.itemId,
               rawMethod: "claude/stream_event/content_block_start",
@@ -2233,6 +2237,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
           context.turnState = {
             turnId,
             startedAt,
+            interactionMode: "default",
             items: [],
             assistantTextBlocks: new Map(),
             assistantTextBlockOrder: [],
@@ -2290,6 +2295,19 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
               toolUseId: typeof toolUse.id === "string" ? toolUse.id : undefined,
               rawSource: "claude.sdk.message",
               rawMethod: "claude/assistant",
+              rawPayload: message,
+            });
+          }
+
+          const taggedPlanMarkdown =
+            context.turnState?.interactionMode === "plan"
+              ? extractProposedPlanMarkdown(extractTextContent(content))
+              : undefined;
+          if (taggedPlanMarkdown) {
+            yield* emitProposedPlanCompleted(context, {
+              planMarkdown: taggedPlanMarkdown,
+              rawSource: "claude.sdk.message",
+              rawMethod: "claude/assistant/proposed-plan-block",
               rawPayload: message,
             });
           }
@@ -3424,6 +3442,7 @@ function makeClaudeAdapter(options?: ClaudeAdapterLiveOptions) {
         const turnState: ClaudeTurnState = {
           turnId,
           startedAt: yield* nowIso,
+          interactionMode: input.interactionMode === "plan" ? "plan" : "default",
           items: [],
           assistantTextBlocks: new Map(),
           assistantTextBlockOrder: [],

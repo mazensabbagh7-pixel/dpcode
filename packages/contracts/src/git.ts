@@ -98,10 +98,10 @@ export const GitSummarizeDiffInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   patch: Schema.String,
   codexHomePath: Schema.optional(TrimmedNonEmptyStringSchema),
+  providerOptions: Schema.optional(ProviderStartOptions),
   textGenerationModel: Schema.optional(TrimmedNonEmptyStringSchema).pipe(
     Schema.withConstructorDefault(() => Option.some(DEFAULT_GIT_TEXT_GENERATION_MODEL)),
   ),
-  providerOptions: Schema.optional(ProviderStartOptions),
 });
 export type GitSummarizeDiffInput = typeof GitSummarizeDiffInput.Type;
 
@@ -115,10 +115,10 @@ export const GitRunStackedActionInput = Schema.Struct({
     Schema.Array(TrimmedNonEmptyStringSchema).check(Schema.isMinLength(1)),
   ),
   codexHomePath: Schema.optional(TrimmedNonEmptyStringSchema),
+  providerOptions: Schema.optional(ProviderStartOptions),
   textGenerationModel: Schema.optional(TrimmedNonEmptyStringSchema).pipe(
     Schema.withConstructorDefault(() => Option.some(DEFAULT_GIT_TEXT_GENERATION_MODEL)),
   ),
-  providerOptions: Schema.optional(ProviderStartOptions),
 });
 export type GitRunStackedActionInput = typeof GitRunStackedActionInput.Type;
 
@@ -179,6 +179,7 @@ export type GitRemoveWorktreeInput = typeof GitRemoveWorktreeInput.Type;
 export const GitCreateBranchInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
   branch: TrimmedNonEmptyStringSchema,
+  publish: Schema.optional(Schema.Boolean),
 });
 export type GitCreateBranchInput = typeof GitCreateBranchInput.Type;
 
@@ -187,6 +188,27 @@ export const GitCheckoutInput = Schema.Struct({
   branch: TrimmedNonEmptyStringSchema,
 });
 export type GitCheckoutInput = typeof GitCheckoutInput.Type;
+
+export const GitStashAndCheckoutInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  branch: TrimmedNonEmptyStringSchema,
+});
+export type GitStashAndCheckoutInput = typeof GitStashAndCheckoutInput.Type;
+
+export const GitStashDropInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export type GitStashDropInput = typeof GitStashDropInput.Type;
+
+export const GitStashInfoInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export type GitStashInfoInput = typeof GitStashInfoInput.Type;
+
+export const GitRemoveIndexLockInput = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+});
+export type GitRemoveIndexLockInput = typeof GitRemoveIndexLockInput.Type;
 
 export const GitInitInput = Schema.Struct({
   cwd: TrimmedNonEmptyStringSchema,
@@ -246,6 +268,15 @@ export const GitCreateDetachedWorktreeResult = Schema.Struct({
   worktree: GitDetachedWorktree,
 });
 export type GitCreateDetachedWorktreeResult = typeof GitCreateDetachedWorktreeResult.Type;
+
+export const GitStashInfoResult = Schema.Struct({
+  cwd: TrimmedNonEmptyStringSchema,
+  branch: TrimmedNonEmptyStringSchema.pipe(Schema.NullOr),
+  stashRef: TrimmedNonEmptyStringSchema,
+  message: TrimmedNonEmptyStringSchema,
+  files: Schema.Array(TrimmedNonEmptyStringSchema),
+});
+export type GitStashInfoResult = typeof GitStashInfoResult.Type;
 
 export const GitResolvePullRequestResult = Schema.Struct({
   pullRequest: GitResolvedPullRequest,

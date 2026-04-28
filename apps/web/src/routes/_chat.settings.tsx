@@ -26,7 +26,8 @@ import {
   patchCustomModels,
   useAppSettings,
 } from "../appSettings";
-import { APP_COMPACT_NAME, APP_VERSION } from "../branding";
+import { APP_VERSION } from "../branding";
+import { SidebarHeaderNavigationControls } from "../components/SidebarHeaderNavigationControls";
 import { ClaudeAI, Gemini, OpenAI, OpenCodeIcon } from "../components/Icons";
 import { Button } from "../components/ui/button";
 import { Collapsible, CollapsibleContent } from "../components/ui/collapsible";
@@ -771,7 +772,7 @@ function SettingsRouteView() {
       return;
     }
 
-    const notification = new Notification(title, { body, tag: "t3code:test-notification" });
+    const notification = new Notification(title, { body, tag: "dpcode:test-notification" });
     notification.addEventListener("click", () => {
       window.focus();
     });
@@ -1274,8 +1275,17 @@ function SettingsRouteView() {
           />
 
           <div className="space-y-3 pt-1">
-            <ThemePackEditor variant="light" isActive={resolvedTheme === "light"} mode={theme} />
-            <ThemePackEditor variant="dark" isActive={resolvedTheme === "dark"} mode={theme} />
+            {(resolvedTheme === "dark"
+              ? (["dark", "light"] as const)
+              : (["light", "dark"] as const)
+            ).map((variant) => (
+              <ThemePackEditor
+                key={variant}
+                variant={variant}
+                isActive={resolvedTheme === variant}
+                mode={theme}
+              />
+            ))}
           </div>
 
           <SettingsRow
@@ -2642,7 +2652,7 @@ function SettingsRouteView() {
               settings.sidebarSide === "right" && "pl-[90px]",
             )}
           >
-            <SidebarHeaderTrigger className="size-7 shrink-0" />
+            <SidebarHeaderNavigationControls />
             <span className="text-xs font-medium tracking-wide text-muted-foreground/70">
               Settings
             </span>

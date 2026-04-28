@@ -289,6 +289,22 @@ export function createWsNativeApi(): NativeApi {
         if (!window.desktopBridge) return null;
         return window.desktopBridge.pickFolder();
       },
+      saveFile: async (input) => {
+        if (window.desktopBridge?.saveFile) {
+          return window.desktopBridge.saveFile(input);
+        }
+        const blob = new Blob([input.contents], { type: "text/markdown;charset=utf-8" });
+        const url = URL.createObjectURL(blob);
+        try {
+          const anchor = document.createElement("a");
+          anchor.href = url;
+          anchor.download = input.defaultFilename;
+          anchor.click();
+        } finally {
+          URL.revokeObjectURL(url);
+        }
+        return null;
+      },
       confirm: async (message) => {
         return showConfirmDialogFallback(message);
       },
@@ -359,6 +375,10 @@ export function createWsNativeApi(): NativeApi {
       removeWorktree: (input) => transport.request(WS_METHODS.gitRemoveWorktree, input),
       createBranch: (input) => transport.request(WS_METHODS.gitCreateBranch, input),
       checkout: (input) => transport.request(WS_METHODS.gitCheckout, input),
+      stashAndCheckout: (input) => transport.request(WS_METHODS.gitStashAndCheckout, input),
+      stashDrop: (input) => transport.request(WS_METHODS.gitStashDrop, input),
+      stashInfo: (input) => transport.request(WS_METHODS.gitStashInfo, input),
+      removeIndexLock: (input) => transport.request(WS_METHODS.gitRemoveIndexLock, input),
       init: (input) => transport.request(WS_METHODS.gitInit, input),
       handoffThread: (input) => transport.request(WS_METHODS.gitHandoffThread, input),
       resolvePullRequest: (input) => transport.request(WS_METHODS.gitResolvePullRequest, input),

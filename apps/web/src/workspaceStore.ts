@@ -31,7 +31,7 @@ interface WorkspaceStoreState {
   reorderWorkspace: (workspaceId: string, nextIndex: number) => void;
 }
 
-const WORKSPACE_STORE_STORAGE_KEY = "t3code:workspace-pages:v2";
+const WORKSPACE_STORE_STORAGE_KEY = "dpcode:workspace-pages:v2";
 
 function randomWorkspaceId(): string {
   if (typeof crypto.randomUUID === "function") {
@@ -137,6 +137,10 @@ export const useWorkspaceStore = create<WorkspaceStoreState>()(
       workspacePages: [createWorkspacePage([])],
       setHomeDir: (homeDir) =>
         set((state) => {
+          // `undefined` means server config has not arrived yet; keep the last known value.
+          if (homeDir === undefined) {
+            return state;
+          }
           const normalizedHomeDir = homeDir?.trim() ?? null;
           if (state.homeDir === normalizedHomeDir) {
             return state;

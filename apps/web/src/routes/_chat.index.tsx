@@ -1,29 +1,35 @@
 // FILE: _chat.index.tsx
-// Purpose: Open or resume the home-chat draft using the same bootstrap path as standard threads.
+// Purpose: Restores the last chat route on app launch, falling back to a fresh home-chat draft.
 // Layer: Routing
-// Depends on: shared new-chat handler so "/" stays a thin alias instead of a special chat surface.
+// Depends on: sidebar UI persistence plus shared new-chat handler for the empty-state fallback.
 
-import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { ThreadId } from "@t3tools/contracts";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useState } from "react";
 
 import { SplashScreen } from "../components/SplashScreen";
 import { readSidebarUiState } from "../components/Sidebar.uiState";
+import { resolveRestorableThreadRoute } from "../chatRouteRestore";
 import { useHandleNewChat } from "../hooks/useHandleNewChat";
-import { createSidebarDisplayThreadsSelector } from "../storeSelectors";
+import { useSplitViewStore } from "../splitViewStore";
 import { useStore } from "../store";
-import { resolveChatIndexResumeThread } from "./-chatIndexRoute.logic";
 
 function ChatIndexRouteView() {
   const { handleNewChat } = useHandleNewChat();
   const navigate = useNavigate();
   const threadsHydrated = useStore((store) => store.threadsHydrated);
-  const threads = useStore(useMemo(() => createSidebarDisplayThreadsSelector(), []));
+  const threadIds = useStore((state) => state.threadIds ?? []);
+  const splitViewsHydrated = useSplitViewStore((state) => state.hasHydrated);
+  const splitViewsById = useSplitViewStore((state) => state.splitViewsById);
+  const splitViewIds = useMemo(
+    () => Object.keys(splitViewsById).filter((splitViewId) => splitViewsById[splitViewId]),
+    [splitViewsById],
+  );
   const [attempt, setAttempt] = useState(0);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
-    if (!threadsHydrated) {
+    if (!threadsHydrated || !splitViewsHydrated) {
       return;
     }
 
@@ -31,17 +37,21 @@ function ChatIndexRouteView() {
     setErrorMessage(null);
 
     void (async () => {
-      const resumeRoute = resolveChatIndexResumeThread({
+      const restorableRoute = resolveRestorableThreadRoute({
         lastThreadRoute: readSidebarUiState().lastThreadRoute,
-        threads,
+        availableThreadIds: new Set(threadIds),
+        availableSplitViewIds: new Set(splitViewIds),
       });
-      if (resumeRoute) {
+      if (restorableRoute) {
+        if (cancelled) {
+          return;
+        }
         await navigate({
           to: "/$threadId",
-          params: { threadId: ThreadId.makeUnsafe(resumeRoute.threadId) },
+          params: { threadId: ThreadId.makeUnsafe(restorableRoute.threadId) },
           replace: true,
           search: () => ({
-            splitViewId: resumeRoute.splitViewId,
+            splitViewId: restorableRoute.splitViewId,
           }),
         });
         return;
@@ -57,7 +67,15 @@ function ChatIndexRouteView() {
     return () => {
       cancelled = true;
     };
-  }, [attempt, handleNewChat, navigate, threads, threadsHydrated]);
+  }, [
+    attempt,
+    handleNewChat,
+    navigate,
+    splitViewIds,
+    splitViewsHydrated,
+    threadIds,
+    threadsHydrated,
+  ]);
 
   return (
     <SplashScreen

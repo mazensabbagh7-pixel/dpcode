@@ -34,6 +34,7 @@ import {
   IconExternalLink,
   IconEye,
   IconFile,
+  IconFlag,
   IconFlask2,
   IconFolder,
   IconFolderOpen,
@@ -70,6 +71,8 @@ import {
   IconSearch,
   IconSelector,
   IconSettings,
+  IconStar,
+  IconStarFilled,
   IconSun,
   IconTerminal,
   IconTerminal2,
@@ -141,6 +144,7 @@ export const AdjustmentsIcon = adaptIcon(IconAdjustments);
 export const ArchiveIcon = adaptIcon(IconArchive);
 export const BrainIcon = adaptIcon(IconBrain);
 export const FileIcon = adaptIcon(IconFile);
+export const FlagIcon = adaptIcon(IconFlag);
 export const FlaskConicalIcon = adaptIcon(IconFlask2);
 export const FolderClosedIcon = adaptIcon(IconFolder);
 export const FolderIcon = adaptIcon(IconFolder);
@@ -222,6 +226,8 @@ export const RotateCcwIcon = adaptIcon(IconRotate2);
 export const Rows3Icon = adaptIcon(IconLayoutDistributeHorizontal);
 export const SearchIcon = adaptIcon(IconSearch);
 export const SettingsIcon = adaptIcon(IconSettings);
+export const StarIcon = adaptIcon(IconStar);
+export const StarFilledIcon = adaptIcon(IconStarFilled);
 export const SunIcon = adaptIcon(IconSun);
 export const MoonIcon = adaptIcon(IconMoon);
 export const DeviceLaptopIcon = adaptIcon(IconDeviceLaptop);

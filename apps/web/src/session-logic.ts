@@ -17,6 +17,7 @@ import {
   decodeSubagentReceiverThreadIds,
 } from "@t3tools/shared/subagents";
 import { deriveReadableToolTitle, normalizeCompactToolLabel } from "./lib/toolCallLabel";
+import { stripProposedPlanBlocksFromText } from "./proposedPlan";
 
 import type {
   ChatMessage,
@@ -104,12 +105,12 @@ export interface PendingUserInput {
   questions: ReadonlyArray<UserInputQuestion>;
 }
 
-export interface ActivePlanState {
+export interface ActiveTaskListState {
   createdAt: string;
   turnId: TurnId | null;
   explanation?: string | null;
-  steps: Array<{
-    step: string;
+  tasks: Array<{
+    task: string;
     status: "pending" | "inProgress" | "completed";
   }>;
 }
@@ -402,15 +403,61 @@ export function derivePendingUserInputs(
   );
 }
 
-export function deriveActivePlanState(
+function toActiveTaskListState(activity: OrchestrationThreadActivity): ActiveTaskListState | null {
+  const payload =
+    activity.payload && typeof activity.payload === "object"
+      ? (activity.payload as Record<string, unknown>)
+      : null;
+  const rawTasks = payload?.tasks;
+  if (!Array.isArray(rawTasks)) {
+    return null;
+  }
+  const tasks = rawTasks
+    .map((entry) => {
+      if (!entry || typeof entry !== "object") return null;
+      const record = entry as Record<string, unknown>;
+      if (typeof record.task !== "string") {
+        return null;
+      }
+      const status =
+        record.status === "completed" || record.status === "inProgress" ? record.status : "pending";
+      return {
+        task: record.task,
+        status,
+      };
+    })
+    .filter(
+      (
+        task,
+      ): task is {
+        task: string;
+        status: "pending" | "inProgress" | "completed";
+      } => task !== null,
+    );
+  if (tasks.length === 0) {
+    return null;
+  }
+  return {
+    createdAt: activity.createdAt,
+    turnId: activity.turnId,
+    ...(payload && "explanation" in payload
+      ? { explanation: payload.explanation as string | null }
+      : {}),
+    tasks,
+  };
+}
+
+export function deriveActiveTaskListState(
   activities: ReadonlyArray<OrchestrationThreadActivity>,
   latestTurnId: TurnId | undefined,
-): ActivePlanState | null {
+): ActiveTaskListState | null {
   const ordered = [...activities].toSorted(compareActivitiesByOrder);
-  const allPlanActivities = ordered.filter((activity) => activity.kind === "turn.plan.updated");
+  const allTaskListActivities = ordered.filter(
+    (activity) => activity.kind === "turn.tasks.updated",
+  );
   const settledTurnIds = new Set<TurnId>();
 
-  // A prior-turn plan only stays visible while that originating turn is still unresolved.
+  // A prior-turn task list only stays visible while that originating turn is still unresolved.
   for (const activity of ordered) {
     if (!activity.turnId) {
       continue;
@@ -420,75 +467,32 @@ export function deriveActivePlanState(
     }
   }
 
-  const toActivePlanState = (activity: OrchestrationThreadActivity): ActivePlanState | null => {
-    const payload =
-      activity.payload && typeof activity.payload === "object"
-        ? (activity.payload as Record<string, unknown>)
-        : null;
-    const rawPlan = payload?.plan;
-    if (!Array.isArray(rawPlan)) {
-      return null;
-    }
-    const steps = rawPlan
-      .map((entry) => {
-        if (!entry || typeof entry !== "object") return null;
-        const record = entry as Record<string, unknown>;
-        if (typeof record.step !== "string") {
-          return null;
-        }
-        const status =
-          record.status === "completed" || record.status === "inProgress"
-            ? record.status
-            : "pending";
-        return {
-          step: record.step,
-          status,
-        };
-      })
-      .filter(
-        (
-          step,
-        ): step is {
-          step: string;
-          status: "pending" | "inProgress" | "completed";
-        } => step !== null,
-      );
-    if (steps.length === 0) {
-      return null;
-    }
-    return {
-      createdAt: activity.createdAt,
-      turnId: activity.turnId,
-      ...(payload && "explanation" in payload
-        ? { explanation: payload.explanation as string | null }
-        : {}),
-      steps,
-    };
-  };
-
-  const currentTurnPlan = latestTurnId
-    ? (allPlanActivities
+  const currentTurnTaskList = latestTurnId
+    ? (allTaskListActivities
         .filter((activity) => activity.turnId === latestTurnId)
-        .map(toActivePlanState)
-        .findLast((plan) => plan !== null) ?? null)
+        .map(toActiveTaskListState)
+        .findLast((taskList) => taskList !== null) ?? null)
     : null;
-  if (currentTurnPlan) {
-    return currentTurnPlan;
+  if (currentTurnTaskList) {
+    return currentTurnTaskList;
   }
 
-  // Keep the most recent unfinished prior plan visible so implementation turns
-  // that have started but not emitted their own plan update can still show progress.
-  const latestPriorPlan =
-    allPlanActivities.map(toActivePlanState).findLast((plan) => plan !== null) ?? null;
-  if (!latestPriorPlan) {
+  // Keep the most recent unfinished prior task list visible so implementation turns
+  // that have started but not emitted their own task update can still show progress.
+  const latestPriorTaskList =
+    allTaskListActivities.map(toActiveTaskListState).findLast((taskList) => taskList !== null) ??
+    null;
+  if (!latestPriorTaskList) {
     return null;
   }
 
-  if (latestPriorPlan.turnId && settledTurnIds.has(latestPriorPlan.turnId)) {
+  if (latestPriorTaskList.turnId && settledTurnIds.has(latestPriorTaskList.turnId)) {
     return null;
   }
 
-  return latestPriorPlan.steps.some((step) => step.status !== "completed") ? latestPriorPlan : null;
+  return latestPriorTaskList.tasks.some((task) => task.status !== "completed")
+    ? latestPriorTaskList
+    : null;
 }
 
 // Counts still-running background work for the active turn so compact UI can surface agent activity.
@@ -1419,12 +1423,31 @@ export function deriveTimelineEntries(
   proposedPlans: ProposedPlan[],
   workEntries: WorkLogEntry[],
 ): TimelineEntry[] {
-  const messageRows: TimelineEntry[] = messages.map((message) => ({
-    id: message.id,
-    kind: "message",
-    createdAt: message.createdAt,
-    message,
-  }));
+  const proposedPlanTurnIds = new Set(
+    proposedPlans.flatMap((proposedPlan) => (proposedPlan.turnId ? [proposedPlan.turnId] : [])),
+  );
+  const messageRows: TimelineEntry[] = messages.flatMap((message) => {
+    const displayMessage =
+      message.role === "assistant" && message.turnId && proposedPlanTurnIds.has(message.turnId)
+        ? { ...message, text: stripProposedPlanBlocksFromText(message.text) }
+        : message;
+    if (
+      displayMessage.role === "assistant" &&
+      displayMessage.text.length === 0 &&
+      displayMessage.turnId &&
+      proposedPlanTurnIds.has(displayMessage.turnId)
+    ) {
+      return [];
+    }
+    return [
+      {
+        id: displayMessage.id,
+        kind: "message",
+        createdAt: displayMessage.createdAt,
+        message: displayMessage,
+      },
+    ];
+  });
   const proposedPlanRows: TimelineEntry[] = proposedPlans.map((proposedPlan) => ({
     id: proposedPlan.id,
     kind: "proposed-plan",

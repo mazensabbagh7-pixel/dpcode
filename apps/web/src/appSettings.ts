@@ -11,7 +11,7 @@ import { useLocalStorage } from "./hooks/useLocalStorage";
 import { EnvMode } from "./components/BranchToolbar.logic";
 import { formatProviderModelOptionName, type ProviderModelOption } from "./providerModelOptions";
 
-const APP_SETTINGS_STORAGE_KEY = "t3code:app-settings:v1";
+const APP_SETTINGS_STORAGE_KEY = "dpcode:app-settings:v1";
 const MAX_CUSTOM_MODEL_COUNT = 32;
 export const MAX_CUSTOM_MODEL_LENGTH = 256;
 export const MIN_CHAT_FONT_SIZE_PX = 11;
@@ -34,9 +34,7 @@ type CustomModelSettingsKey =
   | "customCodexModels"
   | "customClaudeModels"
   | "customGeminiModels"
-  | "customOpenCodeModels"
-  | "customHermesModels";
-const LEGACY_DEFAULT_SIDEBAR_PROJECT_SORT_ORDER: SidebarProjectSortOrder = "updated_at";
+  | "customOpenCodeModels";
 export type ProviderCustomModelConfig = {
   provider: ProviderKind;
   settingsKey: CustomModelSettingsKey;
@@ -218,6 +216,10 @@ function normalizeAppSettings(settings: AppSettings): AppSettings {
     customOpenCodeModels: normalizeCustomModelSlugs(settings.customOpenCodeModels, "opencode"),
     customHermesModels: normalizeCustomModelSlugs(settings.customHermesModels, "hermes"),
   };
+}
+
+export function normalizeStoredAppSettings(settings: AppSettings): AppSettings {
+  return normalizeAppSettings(settings);
 }
 
 export function getCustomModelsForProvider(
@@ -443,26 +445,15 @@ export function useAppSettings() {
     DEFAULT_APP_SETTINGS,
     AppSettingsSchema,
   );
-  const migratedLegacyProjectSortRef = useRef(false);
+  const normalizedStoredSettingsRef = useRef(false);
 
   useEffect(() => {
-    if (migratedLegacyProjectSortRef.current) {
+    if (normalizedStoredSettingsRef.current) {
       return;
     }
-    migratedLegacyProjectSortRef.current = true;
+    normalizedStoredSettingsRef.current = true;
 
-    setSettings((previous) => {
-      const normalized = normalizeAppSettings(previous);
-      if (normalized.sidebarProjectSortOrder !== LEGACY_DEFAULT_SIDEBAR_PROJECT_SORT_ORDER) {
-        return normalized;
-      }
-
-      // Preserve folder muscle memory for older installs that inherited the recency-based default.
-      return {
-        ...normalized,
-        sidebarProjectSortOrder: DEFAULT_SIDEBAR_PROJECT_SORT_ORDER,
-      };
-    });
+    setSettings((previous) => normalizeStoredAppSettings(previous));
   }, [setSettings]);
 
   const updateSettings = useCallback(

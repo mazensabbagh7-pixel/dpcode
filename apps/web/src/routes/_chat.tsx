@@ -3,6 +3,11 @@ import { useQuery } from "@tanstack/react-query";
 import { Outlet, createFileRoute, useLocation, useNavigate } from "@tanstack/react-router";
 import { useEffect, useState } from "react";
 
+import {
+  goBackInAppHistory,
+  goForwardInAppHistory,
+  resolveAppNavigationState,
+} from "../appNavigation";
 import ShortcutsDialog from "../components/ShortcutsDialog";
 import { shouldRenderTerminalWorkspace } from "../components/ChatView.logic";
 import ThreadSidebar from "../components/Sidebar";
@@ -30,13 +35,43 @@ import {
 } from "~/lib/providerAvailability";
 import { toastManager } from "~/components/ui/toast";
 import { Sidebar, SidebarProvider, SidebarRail, useSidebar } from "~/components/ui/sidebar";
-import { useChatCodeFont } from "~/hooks/useChatCodeFont";
-import { useUIFont } from "~/hooks/useUIFont";
 
 const EMPTY_KEYBINDINGS: ResolvedKeybindingsConfig = [];
 const THREAD_SIDEBAR_WIDTH_STORAGE_KEY = "chat_thread_sidebar_width";
 const THREAD_SIDEBAR_MIN_WIDTH = 13 * 16;
 const THREAD_MAIN_CONTENT_MIN_WIDTH = 40 * 16;
+
+function resolveBrowserNavigationShortcut(
+  event: KeyboardEvent,
+  platform: string,
+): "back" | "forward" | null {
+  const isMac = /Mac|iPhone|iPad|iPod/i.test(platform);
+  const key = event.key.toLowerCase();
+
+  if (
+    isMac &&
+    event.metaKey &&
+    !event.ctrlKey &&
+    !event.altKey &&
+    !event.shiftKey &&
+    (key === "[" || key === "]")
+  ) {
+    return key === "[" ? "back" : "forward";
+  }
+
+  if (
+    !isMac &&
+    event.altKey &&
+    !event.metaKey &&
+    !event.ctrlKey &&
+    !event.shiftKey &&
+    (event.key === "ArrowLeft" || event.key === "ArrowRight")
+  ) {
+    return event.key === "ArrowLeft" ? "back" : "forward";
+  }
+
+  return null;
+}
 
 function ChatRouteGlobalShortcuts() {
   const navigate = useNavigate();
@@ -116,6 +151,22 @@ function ChatRouteGlobalShortcuts() {
         event.preventDefault();
         event.stopPropagation();
         setShortcutsDialogOpen(true);
+        return;
+      }
+
+      const appNavigationShortcut = isElectron
+        ? resolveBrowserNavigationShortcut(event, platform)
+        : null;
+      if (appNavigationShortcut) {
+        event.preventDefault();
+        event.stopPropagation();
+        const navigationState = resolveAppNavigationState();
+        if (appNavigationShortcut === "back" && navigationState.canGoBack) {
+          goBackInAppHistory();
+        }
+        if (appNavigationShortcut === "forward" && navigationState.canGoForward) {
+          goForwardInAppHistory();
+        }
         return;
       }
 
@@ -309,8 +360,6 @@ const SIDEBAR_INNER_CLASS = {
 } as const;
 
 function ChatRouteLayout() {
-  useChatCodeFont();
-  useUIFont();
   const { settings } = useAppSettings();
   const side = settings.sidebarSide;
 

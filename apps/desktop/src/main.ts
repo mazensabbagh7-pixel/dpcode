@@ -18,8 +18,7 @@ import {
   shell,
   systemPreferences,
 } from "electron";
-import type { IpcMainEvent, MenuItemConstructorOptions } from "electron";
-import type { BrowserWindowConstructorOptions } from "electron";
+import type { FileFilter, IpcMainEvent, MenuItemConstructorOptions } from "electron";
 import * as Effect from "effect/Effect";
 import type {
   DesktopTheme,
@@ -80,6 +79,7 @@ import { buildDesktopDiagnosticsReport } from "./desktopDiagnostics";
 syncShellEnvironment();
 
 const PICK_FOLDER_CHANNEL = "desktop:pick-folder";
+const SAVE_FILE_CHANNEL = "desktop:save-file";
 const CONFIRM_CHANNEL = "desktop:confirm";
 const SET_THEME_CHANNEL = "desktop:set-theme";
 const CONTEXT_MENU_CHANNEL = "desktop:context-menu";
@@ -268,6 +268,38 @@ function getSafeTheme(rawTheme: unknown): DesktopTheme | null {
   return null;
 }
 
+function isSaveFileInput(input: unknown): input is {
+  defaultFilename: string;
+  contents: string;
+  filters?: FileFilter[];
+} {
+  if (!input || typeof input !== "object") {
+    return false;
+  }
+  const record = input as Record<string, unknown>;
+  if (typeof record.defaultFilename !== "string" || record.defaultFilename.trim().length === 0) {
+    return false;
+  }
+  if (typeof record.contents !== "string") {
+    return false;
+  }
+  if (record.filters === undefined) {
+    return true;
+  }
+  if (!Array.isArray(record.filters)) {
+    return false;
+  }
+  return record.filters.every((filter) => {
+    if (!filter || typeof filter !== "object") return false;
+    const filterRecord = filter as Record<string, unknown>;
+    return (
+      typeof filterRecord.name === "string" &&
+      Array.isArray(filterRecord.extensions) &&
+      filterRecord.extensions.every((extension) => typeof extension === "string")
+    );
+  });
+}
+
 async function waitForBackendHttpReady(
   baseUrl: string,
   options?: Parameters<typeof waitForHttpReady>[1],
@@ -291,6 +323,19 @@ async function waitForBackendHttpReady(
 function cancelBackendReadinessWait(): void {
   backendReadinessAbortController?.abort();
   backendReadinessAbortController = null;
+}
+
+async function reserveBackendEndpoint(reason: string): Promise<void> {
+  backendPort = await Effect.service(NetService).pipe(
+    Effect.flatMap((net) => net.reserveLoopbackPort()),
+    Effect.provide(NetService.layer),
+    Effect.runPromise,
+  );
+  backendHttpUrl = `http://127.0.0.1:${backendPort}`;
+  backendWsUrl = `ws://127.0.0.1:${backendPort}/?token=${encodeURIComponent(backendAuthToken)}`;
+  process.env.DPCODE_DESKTOP_WS_URL = backendWsUrl;
+  process.env.T3CODE_DESKTOP_WS_URL = backendWsUrl;
+  writeDesktopLogHeader(`${reason} resolved backend endpoint port=${backendPort}`);
 }
 
 async function waitForBackendWindowReady(baseUrl: string): Promise<"listening" | "http"> {
@@ -1390,8 +1435,27 @@ function scheduleBackendRestart(reason: string): void {
 
   restartTimer = setTimeout(() => {
     restartTimer = null;
-    startBackend();
+    void restartBackendAfterCrash(reason);
   }, delayMs);
+}
+
+async function restartBackendAfterCrash(reason: string): Promise<void> {
+  if (isQuitting || backendProcess) {
+    return;
+  }
+
+  cancelBackendReadinessWait();
+  try {
+    await reserveBackendEndpoint("backend restart");
+  } catch (error) {
+    scheduleBackendRestart(
+      `failed to reserve restart port after ${reason}: ${formatErrorMessage(error)}`,
+    );
+    return;
+  }
+
+  startBackend();
+  ensureInitialBackendWindowOpen(backendHttpUrl);
 }
 
 function startBackend(): void {
@@ -1562,6 +1626,29 @@ function registerIpcHandlers(): void {
         });
     if (result.canceled) return null;
     return result.filePaths[0] ?? null;
+  });
+
+  ipcMain.removeHandler(SAVE_FILE_CHANNEL);
+  ipcMain.handle(SAVE_FILE_CHANNEL, async (_event, input: unknown) => {
+    if (!isSaveFileInput(input)) {
+      throw new Error("Invalid save file input.");
+    }
+
+    const owner = BrowserWindow.getFocusedWindow() ?? mainWindow;
+    const options = {
+      defaultPath: input.defaultFilename,
+      ...(input.filters ? { filters: input.filters } : {}),
+    };
+    const result = owner
+      ? await dialog.showSaveDialog(owner, options)
+      : await dialog.showSaveDialog(options);
+
+    if (result.canceled || !result.filePath) {
+      return null;
+    }
+
+    await FS.promises.writeFile(result.filePath, input.contents, "utf8");
+    return result.filePath;
   });
 
   ipcMain.removeHandler(CONFIRM_CHANNEL);
@@ -1951,18 +2038,8 @@ if (!hasSingleInstanceLock) {
 
 async function bootstrap(): Promise<void> {
   writeDesktopLogHeader("bootstrap start");
-  backendPort = await Effect.service(NetService).pipe(
-    Effect.flatMap((net) => net.reserveLoopbackPort()),
-    Effect.provide(NetService.layer),
-    Effect.runPromise,
-  );
-  writeDesktopLogHeader(`reserved backend port via NetService port=${backendPort}`);
   backendAuthToken = Crypto.randomBytes(24).toString("hex");
-  backendHttpUrl = `http://127.0.0.1:${backendPort}`;
-  backendWsUrl = `ws://127.0.0.1:${backendPort}/?token=${encodeURIComponent(backendAuthToken)}`;
-  process.env.DPCODE_DESKTOP_WS_URL = backendWsUrl;
-  process.env.T3CODE_DESKTOP_WS_URL = backendWsUrl;
-  writeDesktopLogHeader(`bootstrap resolved websocket url=${backendWsUrl}`);
+  await reserveBackendEndpoint("bootstrap");
 
   registerIpcHandlers();
   writeDesktopLogHeader("bootstrap ipc handlers registered");

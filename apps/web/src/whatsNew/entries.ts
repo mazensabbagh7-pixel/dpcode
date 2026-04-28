@@ -22,110 +22,122 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
-    version: "0.0.44",
-    date: "Apr 27",
-    features: [
-      {
-        id: "chat-history-workload-repair",
-        title: "Chat history and workload cleanup",
-        description:
-          "MazenCode now canonicalizes duplicate Home chat containers and reconciles stale agent runs so chat history and workload state do not stay stuck on old rows.",
-      },
-    ],
-  },
-  {
-    version: "0.0.43",
-    date: "Apr 27",
-    features: [
-      {
-        id: "mazencode-chat-brand-polish",
-        title: "Chats feel cleaner",
-        description:
-          "The chat sidebar, blank-chat state, splash screen, settings labels, and release surfaces now use the cleaner MazenCode identity instead of legacy labels.",
-      },
-    ],
-  },
-  {
-    version: "0.0.42",
-    date: "Apr 27",
-    features: [
-      {
-        id: "chat-queue-stale-active-turn-hotfix",
-        title: "Chats recover from stale running state",
-        description:
-          "Mazen Code now clears stale ready-session turn markers after restart so Codex and Claudio chats do not trap new messages behind an old completed turn.",
-      },
-    ],
-  },
-  {
-    version: "0.0.41",
-    date: "Apr 27",
-    features: [
-      {
-        id: "startup-resumes-saved-chat",
-        title: "Startup resumes saved chats",
-        description:
-          "Opening MazenCode now restores the last valid chat, or the latest saved chat, before creating a fresh thread so rebuilds do not look like chat history disappeared.",
-      },
-    ],
-  },
-  {
-    version: "0.0.40",
-    date: "Apr 27",
-    features: [
-      {
-        id: "hermes-staging-home-hotfix",
-        title: "Hermes uses the staging profile",
-        description:
-          "Mac Mini Hermes launches now set HERMES_HOME to the existing staging profile so MazenCode uses the same configured provider/model path as Hermes Telegram without managing the gateway.",
-      },
-    ],
-  },
-  {
     version: "0.0.39",
-    date: "Apr 27",
+    date: "Apr 28",
     features: [
       {
-        id: "hermes-session-reopen-hotfix",
-        title: "Hermes sessions reopen correctly",
+        id: "split-chat-drag-drop",
+        title: "Split chats are easier to arrange",
         description:
-          "Hermes provider sessions now decode from persisted runtime state after restart, fixing the turn-start error seen in the first 0.0.38 build.",
+          "Split chat panes now support direct drag-and-drop, cross-project drops, and safer orphan handling so multi-chat layouts stay easier to build and recover.",
+      },
+      {
+        id: "split-chat-routing-stability",
+        title: "Split chat navigation is steadier",
+        description:
+          "Split chat activation, route restore, sidebar grouping, and thread subscriptions were tightened so opening and switching chats feels more predictable.",
+      },
+      {
+        id: "opencode-task-events",
+        title: "OpenCode tasks show live progress",
+        description:
+          "OpenCode todo events now flow into DP Code as active task updates, with a compact banner option for keeping current work visible without taking over the chat.",
+      },
+      {
+        id: "opencode-model-favourites",
+        title: "OpenCode models can be favourited",
+        description:
+          "The model picker now supports OpenCode favourites, making preferred models quicker to find across larger provider model lists.",
+      },
+      {
+        id: "opencode-context-usage",
+        title: "OpenCode context usage is tracked",
+        description:
+          "OpenCode sessions now report context usage more consistently, giving DP Code better runtime visibility as conversations grow.",
+      },
+      {
+        id: "production-debug-flags",
+        title: "Debug controls stay out of production",
+        description:
+          "Debug feature flags are now hidden behind local opt-in behavior, keeping production sidebars cleaner while preserving developer-only controls.",
       },
     ],
   },
   {
     version: "0.0.38",
-    date: "Apr 27",
+    date: "Apr 26",
     features: [
       {
-        id: "hermes-remote-provider",
-        title: "Hermes can run from the Mac Mini",
+        id: "chatgpt-voice-transcription",
+        title: "Voice transcription is scoped more carefully",
         description:
-          "Hermes is available as a provider that routes through SSH to the Mac Mini, preserving the existing Hermes tools, skills, auth, and session state on that machine.",
+          "Voice transcription now stays on ChatGPT sessions, avoiding confusing provider mismatches while keeping dictation available where it is supported.",
       },
       {
-        id: "hermes-telegram-safe-boundary",
-        title: "Hermes Telegram stays separate",
+        id: "api-key-voice-transcription",
+        title: "Voice transcription setup is smoother",
         description:
-          "The Hermes provider path uses `hermes chat` only and does not start, stop, replace, or reconfigure the existing Hermes Telegram gateway.",
+          "Voice transcription setup was tightened so spoken prompts can flow into the composer more reliably in supported ChatGPT sessions.",
+      },
+      {
+        id: "composer-mention-labels",
+        title: "Mentions keep their names",
+        description:
+          "Composer replacements now preserve mention labels, so referenced files, apps, and tools remain readable after the prompt text is normalized.",
+      },
+      {
+        id: "plugin-mentions",
+        title: "Plugin mentions are handled in prompts",
+        description:
+          "Plugin references can now flow through composer prompts cleanly, making connected-tool context less brittle when you hand work to an agent.",
+      },
+      {
+        id: "toast-feature-flags",
+        title: "Toast behavior can be feature-flagged",
+        description:
+          "Toast notifications picked up feature-flag wiring, giving DP Code a safer way to roll notification changes forward or back.",
+      },
+      {
+        id: "desktop-bridge-reconnects",
+        title: "Desktop reconnects are steadier",
+        description:
+          "The desktop bridge now refreshes reconnects more reliably and preserves the workspace home directory, reducing drift after desktop runtime restarts.",
       },
     ],
   },
   {
     version: "0.0.37",
-    date: "Apr 27",
+    date: "Apr 25",
     features: [
       {
-        id: "desktop-diagnostics",
-        title: "Desktop diagnostics are built in",
+        id: "branch-switch-recovery",
+        title: "Branch switching is much safer",
         description:
-          "Advanced settings now shows backend health, chat database location, Electron profile state, provider CLI resolution, and a copyable runtime snapshot for faster recovery checks.",
+          "DP Code now handles messy branch switches with clearer recovery actions, recreated stashes, unpublished branch publishing, and stronger checks around conflicts and local work.",
       },
       {
-        id: "linux-window-hardening",
-        title: "Linux window behavior is steadier",
+        id: "plan-mode-proposals",
+        title: "Plan mode proposals show up properly",
         description:
-          "Linux builds now use an opaque desktop window surface and a more reliable file-manager fallback while keeping the macOS visual material path unchanged.",
+          "Proposed plans from providers are now parsed and surfaced as first-class UI state, so planning turns feel more predictable instead of blending into ordinary assistant output.",
+      },
+      {
+        id: "desktop-navigation-controls",
+        title: "Desktop navigation controls landed",
+        description:
+          "The desktop app now has app-level back and forward navigation controls, making it easier to move around DP Code without losing your place.",
+      },
+      {
+        id: "sidebar-sort-stability",
+        title: "Sidebar ordering stays put",
+        description:
+          "Stored sidebar sort preferences are preserved on load, fixing cases where project and thread ordering could unexpectedly reset.",
+      },
+      {
+        id: "font-consistency",
+        title: "Fonts are more consistent",
+        description:
+          "Theme and chat font handling now share one normalization path, tightening up typography across the chat UI, model controls, and theme settings.",
       },
     ],
   },

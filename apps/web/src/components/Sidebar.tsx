@@ -28,8 +28,10 @@ import { LuMessageSquareDashed, LuSplit } from "react-icons/lu";
 import {
   useCallback,
   useEffect,
+  lazy,
   useMemo,
   useRef,
+  Suspense,
   useState,
   type MouseEvent,
   type PointerEvent as ReactPointerEvent,
@@ -111,6 +113,7 @@ import { quotePosixShellArgument } from "../lib/shellQuote";
 import { DEFAULT_THREAD_TERMINAL_ID, type SidebarThreadSummary, type Thread } from "../types";
 import { shouldRenderTerminalWorkspace } from "./ChatView.logic";
 import { ClaudeAI, Gemini, OpenAI, OpenCodeIcon } from "./Icons";
+import { AppNavigationButtons } from "./AppNavigationButtons";
 import { ProjectSidebarIcon } from "./ProjectSidebarIcon";
 import { ThreadPinToggleButton } from "./ThreadPinToggleButton";
 import { ThreadRunningSpinner } from "./ThreadRunningSpinner";
@@ -146,7 +149,15 @@ import {
 import { Alert, AlertAction, AlertDescription, AlertTitle } from "./ui/alert";
 import { Button } from "./ui/button";
 import { Kbd, KbdGroup } from "./ui/kbd";
-import { Menu, MenuGroup, MenuPopup, MenuRadioGroup, MenuRadioItem, MenuTrigger } from "./ui/menu";
+import {
+  Menu,
+  MenuGroup,
+  MenuItem,
+  MenuPopup,
+  MenuRadioGroup,
+  MenuRadioItem,
+  MenuTrigger,
+} from "./ui/menu";
 import { Tooltip, TooltipPopup, TooltipTrigger } from "./ui/tooltip";
 import {
   SidebarContent,
@@ -178,10 +189,8 @@ import {
   getSidebarThreadIdsToPrewarm,
   getVisibleSidebarEntriesForPreview,
   groupSidebarThreadsByProjectId,
-  groupSplitViewsByProjectId,
   pruneExpandedProjectThreadListsForCollapsedProjects,
   resolveSidebarNewThreadEnvMode,
-  resolveSidebarRestorableThreadRoute,
   resolveThreadRowClassName,
   resolveThreadStatusPill,
   isDuplicateProjectCreateError,
@@ -191,6 +200,7 @@ import {
   sortProjectsForSidebar,
   sortThreadsForSidebar,
 } from "./Sidebar.logic";
+import { resolveRestorableThreadRoute, type LastThreadRoute } from "../chatRouteRestore";
 import { resolveSubagentPresentationForThread } from "../lib/subagentPresentation";
 import { useCopyToClipboard } from "~/hooks/useCopyToClipboard";
 import { cn } from "~/lib/utils";
@@ -209,13 +219,14 @@ import {
 } from "../settingsNavigation";
 import {
   resolveSplitViewFocusedThreadId,
-  resolveSplitViewPaneForThread,
+  resolveSplitViewPaneIdForThread,
   selectSplitView,
-  type SplitView,
-  type SplitViewPane,
+  type SplitViewId,
   useSplitViewStore,
 } from "../splitViewStore";
+import { THREAD_DRAG_MIME } from "./chat-drop-overlay/ChatPaneDropOverlay";
 import { useTemporaryThreadStore } from "../temporaryThreadStore";
+import { useThreadActivationController } from "../hooks/useThreadActivationController";
 import { usePinnedThreadsStore } from "../pinnedThreadsStore";
 import { retainThreadDetailSubscription } from "../threadDetailSubscriptionRetention";
 import { useWorkspaceStore, workspaceThreadId } from "../workspaceStore";
@@ -248,10 +259,17 @@ const SIDEBAR_LIST_ANIMATION_OPTIONS = {
 } as const;
 const EMPTY_THREAD_JUMP_LABELS = new Map<ThreadId, string>();
 const EMPTY_SHORTCUT_PARTS: readonly string[] = [];
+const DEBUG_FEATURE_FLAGS_MENU_STORAGE_KEY = "dpcode:show-debug-feature-flags-menu";
 const ADD_PROJECT_SNAPSHOT_CATCH_UP_MAX_ATTEMPTS = 6;
 const ADD_PROJECT_SNAPSHOT_CATCH_UP_DELAY_MS = 50;
+const THREAD_INTENT_PREWARM_RELEASE_MS = 10_000;
 const ADD_PROJECT_EXISTING_SYNC_ERROR =
   "This folder is already linked, but the existing project has not synced into the sidebar yet. Try again in a moment.";
+const DebugFeatureFlagsMenu = import.meta.env.DEV
+  ? lazy(() =>
+      import("./DebugFeatureFlagsMenu").then((module) => ({ default: module.DebugFeatureFlagsMenu })),
+    )
+  : null;
 
 const PROJECT_CONTEXT_MENU_FOLDER_ICON = renderToStaticMarkup(<HiOutlineFolderOpen />);
 const PROJECT_CONTEXT_MENU_EDIT_ICON =
@@ -262,6 +280,32 @@ const PROJECT_CONTEXT_MENU_COPY_PATH_ICON =
   '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/></svg>';
 const PROJECT_CONTEXT_MENU_ARCHIVE_ICON = renderToStaticMarkup(<HiOutlineArchiveBox />);
 const PROJECT_CONTEXT_MENU_DELETE_THREADS_ICON = renderToStaticMarkup(<Trash2 />);
+
+function isLoopbackHostname(hostname: string): boolean {
+  const normalizedHostname = hostname.trim().toLowerCase().replace(/\.$/, "");
+
+  return (
+    normalizedHostname === "localhost" ||
+    normalizedHostname === "127.0.0.1" ||
+    normalizedHostname === "::1" ||
+    normalizedHostname === "[::1]"
+  );
+}
+
+function shouldShowDebugFeatureFlagsMenu(): boolean {
+  if (!import.meta.env.DEV || typeof window === "undefined") {
+    return false;
+  }
+
+  try {
+    return (
+      isLoopbackHostname(window.location.hostname) &&
+      window.localStorage.getItem(DEBUG_FEATURE_FLAGS_MENU_STORAGE_KEY) === "true"
+    );
+  } catch {
+    return false;
+  }
+}
 
 function threadJumpLabelMapsEqual(
   left: ReadonlyMap<ThreadId, string>,
@@ -1096,7 +1140,6 @@ export default function Sidebar() {
   const activeSplitView = useSplitViewStore(selectSplitView(routeSearch.splitViewId ?? null));
   const splitViewsById = useSplitViewStore((store) => store.splitViewsById);
   const setSplitFocusedPane = useSplitViewStore((store) => store.setFocusedPane);
-  const removeSplitView = useSplitViewStore((store) => store.removeSplitView);
   const removeThreadFromSplitViews = useSplitViewStore((store) => store.removeThreadFromSplitViews);
   const { data: keybindings = EMPTY_KEYBINDINGS } = useQuery({
     ...serverConfigQueryOptions(),
@@ -1141,6 +1184,7 @@ export default function Sidebar() {
   const [lastThreadRoute, setLastThreadRoute] = useState(
     () => readSidebarUiState().lastThreadRoute,
   );
+  const [optimisticActiveThreadId, setOptimisticActiveThreadId] = useState<ThreadId | null>(null);
   const [expandedSubagentParentIds, setExpandedSubagentParentIds] = useState<ReadonlySet<ThreadId>>(
     () => new Set(),
   );
@@ -1152,6 +1196,9 @@ export default function Sidebar() {
   const renamingProjectInputRef = useRef<HTMLInputElement | null>(null);
   const dragInProgressRef = useRef(false);
   const suppressProjectClickAfterDragRef = useRef(false);
+  const intentThreadRetentionByIdRef = useRef(
+    new Map<ThreadId, { release: () => void; timeoutId: number }>(),
+  );
   const [desktopUpdateState, setDesktopUpdateState] = useState<DesktopUpdateState | null>(null);
   const [renamingWorkspaceId, setRenamingWorkspaceId] = useState<string | null>(null);
   const [renamingWorkspaceTitle, setRenamingWorkspaceTitle] = useState("");
@@ -1162,10 +1209,13 @@ export default function Sidebar() {
   const clearSelection = useThreadSelectionStore((s) => s.clearSelection);
   const removeFromSelection = useThreadSelectionStore((s) => s.removeFromSelection);
   const setSelectionAnchor = useThreadSelectionStore((s) => s.setAnchor);
+
   // Keep every platform on the same explicit submit path so desktop picker
   // results do not depend on a separate immediate-add branch.
   const shouldShowProjectPathEntry = addingProject;
-  const activeSidebarThreadId = activeSplitView?.sourceThreadId ?? routeThreadId;
+  const routeActiveSidebarThreadId = routeThreadId;
+  const activeSidebarThreadId = optimisticActiveThreadId ?? routeActiveSidebarThreadId;
+  const visualActiveSidebarThreadId = optimisticActiveThreadId ?? routeThreadId;
   const selectSidebarThreads = useMemo(() => createSidebarThreadSummariesSelector(), []);
   const selectSidebarDisplayThreads = useMemo(() => createSidebarDisplayThreadsSelector(), []);
   const sidebarThreads = useStore(selectSidebarThreads);
@@ -1209,6 +1259,24 @@ export default function Sidebar() {
       }),
     [dismissedThreadStatusKeyByThreadId],
   );
+
+  useEffect(() => {
+    if (!optimisticActiveThreadId) {
+      return;
+    }
+    if (routeActiveSidebarThreadId === optimisticActiveThreadId) {
+      setOptimisticActiveThreadId(null);
+      return;
+    }
+
+    const timeout = window.setTimeout(() => {
+      setOptimisticActiveThreadId((current) =>
+        current === optimisticActiveThreadId ? null : current,
+      );
+    }, 1_500);
+    return () => window.clearTimeout(timeout);
+  }, [optimisticActiveThreadId, routeActiveSidebarThreadId]);
+
   const clearThreadNotification = useCallback(
     (threadId: ThreadId) => {
       const thread = sidebarThreadSummaryById[threadId];
@@ -1244,13 +1312,6 @@ export default function Sidebar() {
     presentationMode: routeTerminalState?.presentationMode ?? "drawer",
     terminalOpen,
   });
-  const splitViews = useMemo(
-    () =>
-      Object.values(splitViewsById).filter(
-        (splitView): splitView is SplitView => splitView !== undefined,
-      ),
-    [splitViewsById],
-  );
   const pinnedThreadIdSet = useMemo(() => new Set(pinnedThreadIds), [pinnedThreadIds]);
   const pinnedThreads = useMemo(
     () => getPinnedThreadsForSidebar(sidebarDisplayThreads, pinnedThreadIds),
@@ -1663,7 +1724,7 @@ export default function Sidebar() {
         return;
       }
 
-      const restorableRoute = resolveSidebarRestorableThreadRoute({
+      const restorableRoute = resolveRestorableThreadRoute({
         lastThreadRoute,
         availableThreadIds: new Set(Object.keys(sidebarThreadSummaryById)),
       });
@@ -2106,6 +2167,46 @@ export default function Sidebar() {
     [openRenameThreadDialog],
   );
 
+  const prewarmThreadDetailForIntent = useCallback((threadId: ThreadId) => {
+    const previous = intentThreadRetentionByIdRef.current.get(threadId);
+    if (previous) {
+      window.clearTimeout(previous.timeoutId);
+      previous.release();
+    }
+
+    const release = retainThreadDetailSubscription(threadId);
+    const timeoutId = window.setTimeout(() => {
+      const current = intentThreadRetentionByIdRef.current.get(threadId);
+      if (!current || current.release !== release) return;
+      current.release();
+      intentThreadRetentionByIdRef.current.delete(threadId);
+    }, THREAD_INTENT_PREWARM_RELEASE_MS);
+
+    intentThreadRetentionByIdRef.current.set(threadId, { release, timeoutId });
+  }, []);
+
+  useEffect(
+    () => () => {
+      for (const entry of intentThreadRetentionByIdRef.current.values()) {
+        window.clearTimeout(entry.timeoutId);
+        entry.release();
+      }
+      intentThreadRetentionByIdRef.current.clear();
+    },
+    [],
+  );
+
+  const primeThreadActivation = useCallback(
+    (event: ReactPointerEvent<HTMLElement>, threadId: ThreadId) => {
+      if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) {
+        return;
+      }
+      prewarmThreadDetailForIntent(threadId);
+      setOptimisticActiveThreadId(threadId);
+    },
+    [prewarmThreadDetailForIntent],
+  );
+
   /**
    * Delete a single thread: stop session, close terminal, dispatch delete,
    * clean up drafts/state, and optionally remove orphaned worktree.
@@ -2180,7 +2281,7 @@ export default function Sidebar() {
       });
       const activeSplitViewId = routeSearch.splitViewId ?? null;
       const deletedPaneInActiveSplit = activeSplitView
-        ? resolveSplitViewPaneForThread(activeSplitView, threadId)
+        ? resolveSplitViewPaneIdForThread(activeSplitView, threadId)
         : null;
       await api.orchestration.dispatchCommand({
         type: "thread.delete",
@@ -2866,56 +2967,6 @@ export default function Sidebar() {
       togglePinnedThread,
     ],
   );
-  const returnSplitViewToSingleChat = useCallback(
-    (splitView: SplitView, pane: SplitViewPane) => {
-      const nextThreadId =
-        (pane === "left" ? splitView.leftThreadId : splitView.rightThreadId) ??
-        splitView.leftThreadId ??
-        splitView.rightThreadId;
-      removeSplitView(splitView.id);
-      if (!nextThreadId) {
-        return;
-      }
-      void navigate({
-        to: "/$threadId",
-        params: { threadId: nextThreadId },
-        search: (previous) => ({
-          ...previous,
-          splitViewId: undefined,
-        }),
-      });
-    },
-    [navigate, removeSplitView],
-  );
-  const handleSplitContextMenu = useCallback(
-    async (splitView: SplitView, pane: SplitViewPane, position: { x: number; y: number }) => {
-      const api = readNativeApi();
-      if (!api) return;
-
-      const paneThreadId = pane === "left" ? splitView.leftThreadId : splitView.rightThreadId;
-      setSplitFocusedPane(splitView.id, pane);
-
-      if (paneThreadId) {
-        await handleThreadContextMenu(paneThreadId, position, {
-          extraItems: [{ id: "return-to-single-chat", label: "Return to single chat" }],
-          onExtraAction: async () => {
-            returnSplitViewToSingleChat(splitView, pane);
-          },
-        });
-        return;
-      }
-
-      const clicked = await api.contextMenu.show(
-        [{ id: "return-to-single-chat", label: "Return to single chat" }],
-        position,
-      );
-      if (clicked === "return-to-single-chat") {
-        returnSplitViewToSingleChat(splitView, pane);
-      }
-    },
-    [handleThreadContextMenu, returnSplitViewToSingleChat, setSplitFocusedPane],
-  );
-
   const handleMultiSelectContextMenu = useCallback(
     async (position: { x: number; y: number }) => {
       const api = readNativeApi();
@@ -2991,83 +3042,42 @@ export default function Sidebar() {
     ],
   );
 
-  // Keep clicks, keyboard activation, and Alt+Tab cycling aligned on the same thread-open path.
-  const navigateToSplitView = useCallback(
-    (splitView: SplitView, nextThreadId?: ThreadId | null) => {
-      const focusedThreadId = nextThreadId ?? resolveSplitViewFocusedThreadId(splitView);
-      if (!focusedThreadId) return;
-      void navigate({
-        to: "/$threadId",
-        params: { threadId: focusedThreadId },
-        search: () => ({ splitViewId: splitView.id }),
-      });
-    },
-    [navigate],
-  );
-
-  const activateSplitPane = useCallback(
-    (splitView: SplitView, pane: "left" | "right") => {
-      if (selectedThreadIds.size > 0) {
-        clearSelection();
-      }
-
-      const paneThreadId = pane === "left" ? splitView.leftThreadId : splitView.rightThreadId;
-      const nextThreadId = paneThreadId ?? splitView.leftThreadId ?? splitView.rightThreadId;
-
-      setSelectionAnchor(paneThreadId ?? splitView.sourceThreadId);
-      setSplitFocusedPane(splitView.id, pane);
-
-      if (!nextThreadId) {
-        return;
-      }
-
-      void navigate({
-        to: "/$threadId",
-        params: { threadId: nextThreadId },
-        search: () => ({ splitViewId: splitView.id }),
-      });
-    },
-    [clearSelection, navigate, selectedThreadIds.size, setSelectionAnchor, setSplitFocusedPane],
-  );
-
-  const activateThread = useCallback(
-    (threadId: ThreadId) => {
-      if (selectedThreadIds.size > 0) {
-        clearSelection();
-      }
-      setSelectionAnchor(threadId);
-      const sourceSplitView = splitViews.find((splitView) => splitView.sourceThreadId === threadId);
-      if (sourceSplitView) {
-        navigateToSplitView(sourceSplitView);
-        return;
-      }
-
-      const threadEntryPoint = selectThreadTerminalState(
-        terminalStateByThreadId,
-        threadId,
-      ).entryPoint;
-      if (threadEntryPoint === "terminal") {
-        openTerminalThreadPage(threadId);
-      } else {
-        openChatThreadPage(threadId);
-      }
-      void navigate({
-        to: "/$threadId",
-        params: { threadId },
+  const rememberLastThreadRouteNow = useCallback(
+    (nextLastThreadRoute: LastThreadRoute) => {
+      setLastThreadRoute(nextLastThreadRoute);
+      persistSidebarUiState({
+        chatSectionExpanded,
+        chatThreadListExpanded,
+        expandedProjectThreadListCwds: [...expandedThreadListsByProject],
+        dismissedThreadStatusKeyByThreadId,
+        lastThreadRoute: nextLastThreadRoute,
       });
     },
     [
-      clearSelection,
-      navigate,
-      navigateToSplitView,
-      openChatThreadPage,
-      openTerminalThreadPage,
-      selectedThreadIds.size,
-      setSelectionAnchor,
-      splitViews,
-      terminalStateByThreadId,
+      chatSectionExpanded,
+      chatThreadListExpanded,
+      dismissedThreadStatusKeyByThreadId,
+      expandedThreadListsByProject,
     ],
   );
+  const { activateThreadFromSidebarIntent } = useThreadActivationController({
+    activeSplitView,
+    clearSelection,
+    navigate,
+    openChatThreadPage,
+    openTerminalThreadPage,
+    prewarmThreadDetailForIntent,
+    rememberLastThreadRouteNow,
+    routeSplitViewId: routeSearch.splitViewId,
+    routeThreadId,
+    selectedThreadCount: selectedThreadIds.size,
+    setOptimisticActiveThreadId,
+    setSelectionAnchor,
+    setSplitFocusedPane,
+    sidebarThreadSummaryById,
+    splitViewsById,
+    terminalStateByThreadId,
+  });
 
   const handleProjectContextMenu = useCallback(
     async (projectId: ProjectId, position: { x: number; y: number }) => {
@@ -3304,11 +3314,6 @@ export default function Sidebar() {
     autoAnimate(node, SIDEBAR_LIST_ANIMATION_OPTIONS);
     animatedThreadListsRef.current.add(node);
   }, []);
-  const splitViewBySourceThreadId = useMemo(
-    () => new Map(splitViews.map((splitView) => [splitView.sourceThreadId, splitView] as const)),
-    [splitViews],
-  );
-  const splitViewsByProjectId = useMemo(() => groupSplitViewsByProjectId(splitViews), [splitViews]);
   const sidebarThreadsByProjectId = useMemo(
     () => groupSidebarThreadsByProjectId(sidebarDisplayThreads),
     [sidebarDisplayThreads],
@@ -3424,10 +3429,7 @@ export default function Sidebar() {
       deriveSidebarProjectData({
         projects: standardProjects,
         sortedSidebarThreadsByProjectId,
-        splitViewsByProjectId,
-        splitViewBySourceThreadId,
         pinnedThreadIds,
-        pinnedThreadIdSet,
         expandedParentThreadIds: expandedSubagentParentIds,
         expandedThreadListProjectCwds: expandedThreadListsByProject,
         normalizeProjectCwd: normalizeSidebarProjectThreadListCwd,
@@ -3439,11 +3441,8 @@ export default function Sidebar() {
       activeSidebarThreadId,
       expandedSubagentParentIds,
       expandedThreadListsByProject,
-      pinnedThreadIdSet,
       pinnedThreadIds,
       sortedSidebarThreadsByProjectId,
-      splitViewBySourceThreadId,
-      splitViewsByProjectId,
       standardProjects,
       resolveThreadStatusForSidebar,
     ],
@@ -3594,18 +3593,32 @@ export default function Sidebar() {
         return;
       }
 
-      if (options?.isActive && options.canToggleSubagents) {
+      if (threadId === routeThreadId && options?.canToggleSubagents && !routeSearch.splitViewId) {
         toggleSubagentParent(threadId);
         return;
       }
 
-      activateThread(threadId);
+      activateThreadFromSidebarIntent(threadId);
     },
-    [activateThread, rangeSelectTo, toggleSubagentParent, toggleThreadSelection],
+    [
+      activateThreadFromSidebarIntent,
+      rangeSelectTo,
+      routeThreadId,
+      routeSearch.splitViewId,
+      toggleSubagentParent,
+      toggleThreadSelection,
+    ],
   );
 
   const visibleSidebarThreadIds = useMemo(() => {
-    const visibleThreadIds = pinnedThreads.map((thread) => thread.id);
+    const visibleThreadIdSet = new Set<ThreadId>();
+    const addVisibleThreadId = (threadId: ThreadId) => {
+      visibleThreadIdSet.add(threadId);
+    };
+
+    for (const thread of pinnedThreads) {
+      addVisibleThreadId(thread.id);
+    }
 
     for (const project of standardProjects) {
       const projectSidebarData = standardProjectSidebarDataById.get(project.id);
@@ -3615,15 +3628,17 @@ export default function Sidebar() {
 
       if (!project.expanded) {
         if (projectSidebarData.activeEntryId) {
-          visibleThreadIds.push(projectSidebarData.activeEntryId);
+          addVisibleThreadId(projectSidebarData.activeEntryId);
         }
         continue;
       }
 
-      visibleThreadIds.push(...projectSidebarData.visibleEntries.map((entry) => entry.rowId));
+      for (const entry of projectSidebarData.visibleEntries) {
+        addVisibleThreadId(entry.rowId);
+      }
     }
 
-    return visibleThreadIds;
+    return [...visibleThreadIdSet];
   }, [pinnedThreads, standardProjects, standardProjectSidebarDataById]);
   const isManualProjectSorting = appSettings.sidebarProjectSortOrder === "manual";
   const threadJumpCommandByThreadId = useMemo(() => {
@@ -3671,6 +3686,7 @@ export default function Sidebar() {
   useEffect(() => {
     const threadIdsToPrewarm = getSidebarThreadIdsToPrewarm({
       visibleThreadIds: visibleSidebarThreadIds,
+      activeThreadId: activeSidebarThreadId,
     });
     const releaseCallbacks = threadIdsToPrewarm.map((threadId) =>
       retainThreadDetailSubscription(threadId),
@@ -3681,7 +3697,7 @@ export default function Sidebar() {
         release();
       }
     };
-  }, [visibleSidebarThreadIds]);
+  }, [activeSidebarThreadId, visibleSidebarThreadIds]);
 
   // Pinned rows should show the user-facing project label, not the raw folder basename.
   function resolvePinnedThreadProjectLabel(projectId: ProjectId): string | null {
@@ -3813,7 +3829,7 @@ export default function Sidebar() {
     });
     const terminalCount = threadTerminalState.terminalIds.length;
     const isPendingArchiveConfirmation = pendingArchiveConfirmationThreadId === thread.id;
-    const isActive = !activeSplitView && routeThreadId === thread.id;
+    const isActive = visualActiveSidebarThreadId === thread.id;
     const projectLabel = resolvePinnedThreadProjectLabel(thread.projectId);
     const rightMetaChips = resolveThreadRowMetaChips({
       thread,
@@ -3843,7 +3859,8 @@ export default function Sidebar() {
               ? "bg-[var(--sidebar-accent-active)] text-[var(--sidebar-accent-foreground)]"
               : "text-foreground/72 hover:bg-[var(--sidebar-accent)]",
           )}
-          onClick={() => activateThread(thread.id)}
+          onPointerDown={(event) => primeThreadActivation(event, thread.id)}
+          onClick={() => activateThreadFromSidebarIntent(thread.id)}
           onDoubleClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -3853,7 +3870,7 @@ export default function Sidebar() {
           onKeyDown={(event) => {
             if (event.key === "Enter" || event.key === " ") {
               event.preventDefault();
-              activateThread(thread.id);
+              activateThreadFromSidebarIntent(thread.id);
             }
           }}
           onContextMenu={(event) => {
@@ -3984,7 +4001,7 @@ export default function Sidebar() {
     const threadTerminalState = selectThreadTerminalState(terminalStateByThreadId, thread.id);
     const threadEntryPoint = threadTerminalState.entryPoint;
     const isPendingArchiveConfirmation = pendingArchiveConfirmationThreadId === thread.id;
-    const isActive = !activeSplitView && routeThreadId === thread.id;
+    const isActive = visualActiveSidebarThreadId === thread.id;
     const isPinned = pinnedThreadIdSet.has(thread.id);
     const isSelected = selectedThreadIds.has(thread.id);
     const isHighlighted = isActive || isSelected;
@@ -4093,12 +4110,30 @@ export default function Sidebar() {
             }),
             isSubagentThread ? "h-7 pr-7.5" : undefined,
           )}
-          onClick={(event) =>
+          draggable={renamingThreadId !== thread.id}
+          onDragStart={(event) => {
+            const dragImage = event.currentTarget as HTMLElement | null;
+            event.dataTransfer.effectAllowed = "move";
+            event.dataTransfer.setData(
+              THREAD_DRAG_MIME,
+              JSON.stringify({ threadId: thread.id }),
+            );
+            if (dragImage) {
+              const rect = dragImage.getBoundingClientRect();
+              event.dataTransfer.setDragImage(
+                dragImage,
+                Math.max(0, event.clientX - rect.left),
+                Math.max(0, event.clientY - rect.top),
+              );
+            }
+          }}
+          onClick={(event) => {
             handleThreadClick(event, thread.id, orderedProjectThreadIds, {
               isActive,
               canToggleSubagents,
-            })
-          }
+            });
+          }}
+          onPointerDown={(event) => primeThreadActivation(event, thread.id)}
           onDoubleClick={(event) => {
             event.preventDefault();
             event.stopPropagation();
@@ -4108,7 +4143,7 @@ export default function Sidebar() {
           onKeyDown={(event) => {
             if (event.key !== "Enter" && event.key !== " ") return;
             event.preventDefault();
-            activateThread(thread.id);
+            activateThreadFromSidebarIntent(thread.id);
           }}
           onContextMenu={(event) => {
             event.preventDefault();
@@ -4319,90 +4354,6 @@ export default function Sidebar() {
       hasHiddenThreads,
       isThreadListExpanded,
     } = projectSidebarData;
-    const renderSplitRow = (splitView: SplitView) => {
-      const leftPreview = resolveSplitPreview(splitView.leftThreadId);
-      const rightPreview = resolveSplitPreview(splitView.rightThreadId);
-      const isActive = routeSearch.splitViewId === splitView.id;
-
-      return (
-        <SidebarMenuSubItem key={`split:${splitView.id}`} className="w-full" data-thread-item>
-          <SidebarMenuSubButton
-            render={<div role="button" tabIndex={0} />}
-            size="sm"
-            isActive={isActive}
-            className={resolveThreadRowClassName({
-              isActive,
-              isSelected: false,
-            })}
-            onClick={() => activateSplitPane(splitView, splitView.focusedPane)}
-            onContextMenu={(event) => {
-              event.preventDefault();
-              void handleSplitContextMenu(splitView, splitView.focusedPane, {
-                x: event.clientX,
-                y: event.clientY,
-              });
-            }}
-            onKeyDown={(event) => {
-              if (event.key !== "Enter" && event.key !== " ") return;
-              event.preventDefault();
-              activateSplitPane(splitView, splitView.focusedPane);
-            }}
-          >
-            <div className="-ml-1.5 flex min-w-0 flex-1 items-center gap-0.5">
-              {[
-                { pane: "left" as const, preview: leftPreview },
-                { pane: "right" as const, preview: rightPreview },
-              ].map(({ pane, preview }) => (
-                <div
-                  key={pane}
-                  role="button"
-                  tabIndex={0}
-                  className={cn(
-                    "flex min-w-0 flex-1 select-none items-center gap-1 rounded-md px-1.5 py-0.5 text-left outline-hidden transition-colors focus-visible:ring-1 focus-visible:ring-[color:var(--color-border-focus)]",
-                    splitView.focusedPane === pane
-                      ? "bg-[var(--color-background-button-secondary)] shadow-xs"
-                      : "hover:bg-[var(--sidebar-accent)]",
-                  )}
-                  onClick={(event) => {
-                    event.stopPropagation();
-                    activateSplitPane(splitView, pane);
-                  }}
-                  onContextMenu={(event) => {
-                    event.preventDefault();
-                    event.stopPropagation();
-                    void handleSplitContextMenu(splitView, pane, {
-                      x: event.clientX,
-                      y: event.clientY,
-                    });
-                  }}
-                  onMouseDown={(event) => {
-                    if (event.detail > 1) {
-                      event.preventDefault();
-                    }
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key !== "Enter" && event.key !== " ") return;
-                    event.preventDefault();
-                    event.stopPropagation();
-                    activateSplitPane(splitView, pane);
-                  }}
-                >
-                  <ProviderGlyph provider={preview.provider} className="size-3 shrink-0" />
-                  <span className="min-w-0 truncate text-[length:var(--app-font-size-ui-sm,11px)] leading-5 text-foreground/86">
-                    {preview.threadId ? preview.title : "Select chat"}
-                  </span>
-                </div>
-              ))}
-            </div>
-            <div className="ml-auto flex shrink-0 items-center gap-1.5">
-              <span className="text-[length:var(--app-font-size-ui-sm,11px)] text-muted-foreground/40">
-                {formatRelativeTime(splitView.updatedAt)}
-              </span>
-            </div>
-          </SidebarMenuSubButton>
-        </SidebarMenuSubItem>
-      );
-    };
 
     return (
       <div className="group/collapsible">
@@ -4600,15 +4551,13 @@ export default function Sidebar() {
               )}
             >
               {visibleEntries.map((entry) =>
-                entry.kind === "thread"
-                  ? renderThreadRow(
-                      entry.thread,
-                      orderedProjectThreadIds,
-                      entry.depth,
-                      entry.childCount,
-                      entry.isExpanded,
-                    )
-                  : renderSplitRow(entry.splitView),
+                renderThreadRow(
+                  entry.thread,
+                  orderedProjectThreadIds,
+                  entry.depth,
+                  entry.childCount,
+                  entry.isExpanded,
+                ),
               )}
 
               {hasHiddenThreads && !isThreadListExpanded && (
@@ -4794,30 +4743,28 @@ export default function Sidebar() {
       }
       const jumpIndex = threadJumpIndexFromCommand(command ?? "");
       if (jumpIndex !== null) {
-        const threadJumpTargetId = threadJumpThreadIds[jumpIndex];
-        if (!threadJumpTargetId) {
-          return;
-        }
-        if (threadJumpTargetId === activeSidebarThreadId) return;
         event.preventDefault();
         event.stopPropagation();
-        activateThread(threadJumpTargetId);
+        const threadJumpTargetId = threadJumpThreadIds[jumpIndex];
+        if (threadJumpTargetId) {
+          activateThreadFromSidebarIntent(threadJumpTargetId);
+        }
         return;
       }
       if (command !== "chat.visible.next" && command !== "chat.visible.previous") {
         return;
       }
 
+      event.preventDefault();
+      event.stopPropagation();
       const nextThreadId = getNextVisibleSidebarThreadId({
         visibleThreadIds: visibleSidebarThreadIds,
         activeThreadId: activeSidebarThreadId ?? undefined,
         direction: command === "chat.visible.previous" ? "backward" : "forward",
       });
-      if (!nextThreadId || nextThreadId === activeSidebarThreadId) return;
-
-      event.preventDefault();
-      event.stopPropagation();
-      activateThread(nextThreadId);
+      if (nextThreadId && nextThreadId !== activeSidebarThreadId) {
+        activateThreadFromSidebarIntent(nextThreadId);
+      }
     };
     const onKeyUp = (event: KeyboardEvent) => {
       if (shouldIgnoreThreadJumpHintUpdate(event)) {
@@ -4856,7 +4803,7 @@ export default function Sidebar() {
       window.removeEventListener("blur", onWindowBlur);
     };
   }, [
-    activateThread,
+    activateThreadFromSidebarIntent,
     activeSidebarThreadId,
     keybindings,
     getCurrentSidebarShortcutContext,
@@ -5155,29 +5102,55 @@ export default function Sidebar() {
     setAllProjectsExpanded(true);
   }, [allProjectsExpanded, collapseProjectsExcept, focusedProjectId, setAllProjectsExpanded]);
 
-  const wordmark = (
-    <div className="relative flex h-full w-full items-center justify-center">
-      <SidebarTrigger className="absolute left-0 top-1/2 shrink-0 -translate-y-1/2 md:hidden" />
-      <Tooltip>
-        <TooltipTrigger
-          render={
-            <div className="mx-auto flex h-8 max-w-[calc(100%-2.5rem)] min-w-0 cursor-pointer items-center justify-center font-system-ui">
-              <div className="flex min-w-0 items-center justify-center">
-                <MazenCodeWordmark />
-              </div>
+  const brandWordmark = (
+    <Tooltip>
+      <TooltipTrigger
+        render={
+          <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-system-ui">
+            <div className="flex min-w-0 items-center gap-1">
+              <T3Wordmark />
+              <span className="truncate text-[14px] font-normal tracking-tight text-foreground/82">
+                Code
+              </span>
             </div>
-          }
-        />
-        <TooltipPopup side="bottom" sideOffset={2}>
-          Version {APP_VERSION}
-        </TooltipPopup>
-      </Tooltip>
+          </div>
+        }
+      />
+      <TooltipPopup side="bottom" sideOffset={2}>
+        Version {APP_VERSION}
+      </TooltipPopup>
+    </Tooltip>
+  );
+
+  const titlebarControls = (
+    <div className="hidden shrink-0 items-center gap-0.5 md:flex">
+      <AppNavigationButtons className="ms-0" />
       <SidebarTrigger
-        className="absolute right-0 top-1/2 hidden size-7 shrink-0 -translate-y-1/2 text-muted-foreground/75 hover:text-foreground md:inline-flex"
+        className="size-7 shrink-0 text-muted-foreground/75 hover:text-foreground"
         aria-label="Toggle thread sidebar"
       />
     </div>
   );
+
+  const headerControls = (
+    <div className="ml-auto hidden shrink-0 items-center gap-0.5 md:flex">
+      <AppNavigationButtons className="ms-0" />
+      <SidebarTrigger
+        className="size-7 shrink-0 text-muted-foreground/75 hover:text-foreground"
+        aria-label="Toggle thread sidebar"
+      />
+    </div>
+  );
+
+  const wordmark = (
+    <div className="flex w-full items-center gap-1.5">
+      <SidebarTrigger className="shrink-0 md:hidden" />
+      {brandWordmark}
+      {headerControls}
+    </div>
+  );
+
+  const sidebarBrand = <div className="flex min-w-0 px-4 pt-3 pb-2">{brandWordmark}</div>;
 
   return (
     <>
@@ -5189,7 +5162,7 @@ export default function Sidebar() {
               appSettings.sidebarSide === "left" && "pl-[90px]",
             )}
           >
-            {wordmark}
+            {titlebarControls}
           </SidebarHeader>
         </>
       ) : (
@@ -5297,6 +5270,7 @@ export default function Sidebar() {
           </SidebarGroup>
         ) : (
           <>
+            {isElectron ? sidebarBrand : null}
             <SidebarSegmentedPicker
               activeView={isOnWorkspace ? "workspace" : "threads"}
               onSelectView={handleSidebarViewChange}
@@ -5786,50 +5760,57 @@ export default function Sidebar() {
             </SidebarMenuItem>
           ) : null}
           <SidebarMenuItem>
-            <div className="flex items-center gap-2">
-              {!isOnSettings && (
-                <SidebarMenuButton
-                  size="default"
-                  className="h-8 flex-1 gap-2.5 rounded-lg px-2 text-[length:var(--app-font-size-ui,12px)] font-normal text-muted-foreground/72 hover:bg-[var(--sidebar-accent)]"
-                  onClick={() => void navigate({ to: "/settings" })}
-                >
-                  <SettingsIcon className="size-[15px]" />
-                  <span>Settings</span>
-                </SidebarMenuButton>
-              )}
-              {showDesktopUpdateButton ? (
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <button
-                        type="button"
-                        aria-label={desktopUpdateTooltip}
-                        aria-disabled={desktopUpdateButtonDisabled || undefined}
-                        disabled={desktopUpdateButtonDisabled}
-                        className={desktopUpdateRowButtonClasses}
-                        onClick={handleDesktopUpdateButtonClick}
-                      >
-                        <span className="flex min-w-0 flex-1 flex-col leading-tight">
-                          <span className="truncate text-[10px] font-semibold">
-                            {desktopUpdateButtonPresentation.label}
+            <div className="flex flex-col gap-1">
+              {DebugFeatureFlagsMenu && shouldShowDebugFeatureFlagsMenu() && !isOnSettings ? (
+                <Suspense fallback={null}>
+                  <DebugFeatureFlagsMenu />
+                </Suspense>
+              ) : null}
+              <div className="flex items-center gap-2">
+                {!isOnSettings && (
+                  <SidebarMenuButton
+                    size="default"
+                    className="h-8 flex-1 gap-2.5 rounded-lg px-2 text-[length:var(--app-font-size-ui,12px)] font-normal text-muted-foreground/72 hover:bg-[var(--sidebar-accent)]"
+                    onClick={() => void navigate({ to: "/settings" })}
+                  >
+                    <SettingsIcon className="size-[15px]" />
+                    <span>Settings</span>
+                  </SidebarMenuButton>
+                )}
+                {showDesktopUpdateButton ? (
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <button
+                          type="button"
+                          aria-label={desktopUpdateTooltip}
+                          aria-disabled={desktopUpdateButtonDisabled || undefined}
+                          disabled={desktopUpdateButtonDisabled}
+                          className={desktopUpdateRowButtonClasses}
+                          onClick={handleDesktopUpdateButtonClick}
+                        >
+                          <span className="flex min-w-0 flex-1 flex-col leading-tight">
+                            <span className="truncate text-[10px] font-semibold">
+                              {desktopUpdateButtonPresentation.label}
+                            </span>
+                            {desktopUpdateButtonPresentation.secondaryLabel ? (
+                              <span className="truncate text-[9px] text-white/80">
+                                {desktopUpdateButtonPresentation.secondaryLabel}
+                              </span>
+                            ) : null}
                           </span>
-                          {desktopUpdateButtonPresentation.secondaryLabel ? (
-                            <span className="truncate text-[9px] text-white/80">
-                              {desktopUpdateButtonPresentation.secondaryLabel}
+                          {desktopUpdateButtonPresentation.progressPercent !== null ? (
+                            <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-white/95">
+                              {desktopUpdateButtonPresentation.progressPercent}%
                             </span>
                           ) : null}
-                        </span>
-                        {desktopUpdateButtonPresentation.progressPercent !== null ? (
-                          <span className="rounded-full bg-white/20 px-1.5 py-0.5 text-[9px] font-semibold tabular-nums text-white/95">
-                            {desktopUpdateButtonPresentation.progressPercent}%
-                          </span>
-                        ) : null}
-                      </button>
-                    }
-                  />
-                  <TooltipPopup side="top">{desktopUpdateTooltip}</TooltipPopup>
-                </Tooltip>
-              ) : null}
+                        </button>
+                      }
+                    />
+                    <TooltipPopup side="top">{desktopUpdateTooltip}</TooltipPopup>
+                  </Tooltip>
+                ) : null}
+              </div>
             </div>
           </SidebarMenuItem>
         </SidebarMenu>
@@ -5877,7 +5858,7 @@ export default function Sidebar() {
           onOpenProject={handleOpenProjectFromSearch}
           onImportThread={handleImportThread}
           onOpenThread={(threadId) => {
-            activateThread(ThreadId.makeUnsafe(threadId));
+            activateThreadFromSidebarIntent(ThreadId.makeUnsafe(threadId));
           }}
         />
       ) : null}

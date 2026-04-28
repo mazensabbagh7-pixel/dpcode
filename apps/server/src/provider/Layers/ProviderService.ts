@@ -45,6 +45,13 @@ export interface ProviderServiceLiveOptions {
   readonly canonicalEventLogger?: EventNdjsonLogger;
 }
 
+const DEFAULT_PROVIDER_RUNTIME_IDLE_STOP_MS = 10 * 60 * 1000;
+const PROVIDER_RUNTIME_IDLE_STOP_MS = Number.isFinite(
+  Number(process.env.DPCODE_PROVIDER_RUNTIME_IDLE_STOP_MS),
+)
+  ? Math.max(0, Number(process.env.DPCODE_PROVIDER_RUNTIME_IDLE_STOP_MS))
+  : DEFAULT_PROVIDER_RUNTIME_IDLE_STOP_MS;
+
 const ProviderRollbackConversationInput = Schema.Struct({
   threadId: ThreadId,
   numTurns: NonNegativeInt,
@@ -174,6 +181,48 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
     const registry = yield* ProviderAdapterRegistry;
     const directory = yield* ProviderSessionDirectory;
     const runtimeEventPubSub = yield* PubSub.unbounded<ProviderRuntimeEvent>();
+    const runtimeIdleTimers = new Map<ThreadId, ReturnType<typeof setTimeout>>();
+    let stopIdleRuntimeSession: ((threadId: ThreadId) => void) | null = null;
+
+    const clearRuntimeIdleTimer = (threadId: ThreadId) => {
+      const timer = runtimeIdleTimers.get(threadId);
+      if (!timer) {
+        return;
+      }
+      clearTimeout(timer);
+      runtimeIdleTimers.delete(threadId);
+    };
+
+    const scheduleRuntimeIdleStop = (threadId: ThreadId) => {
+      clearRuntimeIdleTimer(threadId);
+      if (PROVIDER_RUNTIME_IDLE_STOP_MS <= 0) {
+        return;
+      }
+
+      const timer = setTimeout(() => {
+        runtimeIdleTimers.delete(threadId);
+        stopIdleRuntimeSession?.(threadId);
+      }, PROVIDER_RUNTIME_IDLE_STOP_MS);
+      timer.unref();
+      runtimeIdleTimers.set(threadId, timer);
+    };
+
+    const reconcileRuntimeIdleTimer = (event: ProviderRuntimeEvent) => {
+      switch (event.type) {
+        case "turn.started":
+          clearRuntimeIdleTimer(event.threadId);
+          return;
+        case "session.started":
+        case "thread.started":
+        case "turn.completed":
+        case "turn.aborted":
+          scheduleRuntimeIdleStop(event.threadId);
+          return;
+        case "session.exited":
+          clearRuntimeIdleTimer(event.threadId);
+          return;
+      }
+    };
 
     const publishRuntimeEvent = (event: ProviderRuntimeEvent): Effect.Effect<void> =>
       Effect.succeed(event).pipe(
@@ -209,7 +258,9 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       registry.getByProvider(provider),
     );
     const processRuntimeEvent = (event: ProviderRuntimeEvent): Effect.Effect<void> =>
-      publishRuntimeEvent(event);
+      Effect.sync(() => reconcileRuntimeIdleTimer(event)).pipe(
+        Effect.andThen(publishRuntimeEvent(event)),
+      );
 
     const readPersistedRuntimeOptionsForThread = Effect.fnUntraced(function* (threadId: ThreadId) {
       const binding = Option.getOrUndefined(yield* directory.getBinding(threadId));
@@ -331,6 +382,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           threadId,
           provider: parsed.provider ?? "codex",
         };
+        clearRuntimeIdleTimer(threadId);
         const persistedBinding = Option.getOrUndefined(yield* directory.getBinding(threadId));
         const effectiveResumeCursor =
           input.resumeCursor ??
@@ -714,6 +766,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           schema: ProviderStopSessionInput,
           payload: rawInput,
         });
+        clearRuntimeIdleTimer(input.threadId);
         const routed = yield* resolveRoutableSession({
           threadId: input.threadId,
           operation: "ProviderService.stopSession",
@@ -737,6 +790,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           schema: ProviderStopSessionInput,
           payload: rawInput,
         });
+        clearRuntimeIdleTimer(input.threadId);
         const bindingOption = yield* directory.getBinding(input.threadId);
         const binding = Option.getOrUndefined(bindingOption);
         if (!binding) {
@@ -755,6 +809,11 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           status: "stopped",
           resumeCursor: binding.resumeCursor,
           runtimePayload: {
+            ...(binding.runtimePayload &&
+            typeof binding.runtimePayload === "object" &&
+            !Array.isArray(binding.runtimePayload)
+              ? binding.runtimePayload
+              : {}),
             activeTurnId: null,
             lastRuntimeEvent: "provider.stopRuntimeSession",
             lastRuntimeEventAt: new Date().toISOString(),
@@ -765,6 +824,36 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
         });
       });
 
+    stopIdleRuntimeSession = (threadId) => {
+      void Effect.runPromise(
+        Effect.gen(function* () {
+          const binding = Option.getOrUndefined(yield* directory.getBinding(threadId));
+          if (!binding) {
+            return;
+          }
+
+          const adapter = yield* registry.getByProvider(binding.provider);
+          const sessions = yield* adapter.listSessions();
+          const session = sessions.find((entry) => entry.threadId === threadId);
+          if (!session || session.status !== "ready" || session.activeTurnId !== undefined) {
+            return;
+          }
+          if (session.resumeCursor === undefined) {
+            return;
+          }
+
+          yield* stopRuntimeSession({ threadId });
+        }).pipe(
+          Effect.catchCause((cause) =>
+            Effect.logWarning("provider.session.idle_stop_failed", {
+              threadId,
+              cause,
+            }),
+          ),
+        ),
+      );
+    };
+
     const clearSessionResumeCursor: NonNullable<
       ProviderServiceShape["clearSessionResumeCursor"]
     > = (rawInput) =>
@@ -774,6 +863,7 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
           schema: ProviderStopSessionInput,
           payload: rawInput,
         });
+        clearRuntimeIdleTimer(input.threadId);
         const bindingOption = yield* directory.getBinding(input.threadId);
         const binding = Option.getOrUndefined(bindingOption);
         if (!binding) {
@@ -932,8 +1022,15 @@ const makeProviderService = (options?: ProviderServiceLiveOptions) =>
       });
 
     yield* Effect.addFinalizer(() =>
-      Effect.catch(runStopAll(), (cause) =>
-        Effect.logWarning("failed to stop provider service", { cause }),
+      Effect.sync(() => {
+        for (const timer of runtimeIdleTimers.values()) {
+          clearTimeout(timer);
+        }
+        runtimeIdleTimers.clear();
+        stopIdleRuntimeSession = null;
+      }).pipe(
+        Effect.andThen(runStopAll()),
+        Effect.catch((cause) => Effect.logWarning("failed to stop provider service", { cause })),
       ),
     );
 

@@ -134,7 +134,7 @@ import {
   derivePhase,
   deriveTimelineEntries,
   deriveActiveWorkStartedAt,
-  deriveActivePlanState,
+  deriveActiveTaskListState,
   deriveActiveBackgroundTasksState,
   findSidebarProposedPlan,
   findLatestProposedPlan,
@@ -211,7 +211,6 @@ import {
   projectScriptIdFromCommand,
   setupProjectScript,
 } from "~/projectScripts";
-import { SidebarHeaderTrigger } from "./ui/sidebar";
 import { newCommandId, newMessageId, newProjectId, newThreadId } from "~/lib/utils";
 import { readNativeApi } from "~/nativeApi";
 import {
@@ -274,6 +273,8 @@ import {
 import { ComposerPromptEditor, type ComposerPromptEditorHandle } from "./ComposerPromptEditor";
 import { PullRequestThreadDialog } from "./PullRequestThreadDialog";
 import { ChatHeader } from "./chat/ChatHeader";
+import { SidebarHeaderNavigationControls } from "./SidebarHeaderNavigationControls";
+import { SidebarHeaderTrigger } from "./ui/sidebar";
 import { ChatTranscriptPane } from "./chat/ChatTranscriptPane";
 import { buildTurnDiffSummaryByAssistantMessageId } from "./chat/MessagesTimeline.logic";
 import { ComposerSlashStatusDialog } from "./chat/ComposerSlashStatusDialog";
@@ -293,7 +294,7 @@ import { ComposerVoiceButton } from "./chat/ComposerVoiceButton";
 import { ComposerVoiceRecorderBar } from "./chat/ComposerVoiceRecorderBar";
 import { ComposerReferenceAttachments } from "./chat/ComposerReferenceAttachments";
 import { TranscriptSelectionActionLayer } from "./chat/TranscriptSelectionActionLayer";
-import { ActivePlanCard } from "./chat/ActivePlanCard";
+import { ActiveTaskListCard } from "./chat/ActiveTaskListCard";
 import { useTranscriptAssistantSelectionAction } from "./chat/useTranscriptAssistantSelectionAction";
 import {
   getComposerProviderState,
@@ -678,6 +679,7 @@ interface ChatViewProps {
   onOpenTurnDiffPanel?: (turnId: TurnId, filePath?: string) => void;
   onSplitSurface?: () => void;
   onMaximizeSurface?: () => void;
+  onChangeThreadInSplitPane?: () => void;
 }
 
 export default function ChatView({
@@ -691,6 +693,7 @@ export default function ChatView({
   onOpenTurnDiffPanel,
   onSplitSurface,
   onMaximizeSurface,
+  onChangeThreadInSplitPane,
 }: ChatViewProps) {
   const markThreadVisited = useStore((store) => store.markThreadVisited);
   const syncServerReadModel = useStore((store) => store.syncServerReadModel);
@@ -714,6 +717,7 @@ export default function ChatView({
   const { resolvedTheme } = useTheme();
   const queryClient = useQueryClient();
   const createWorktreeMutation = useMutation(gitCreateWorktreeMutationOptions({ queryClient }));
+  const isInactiveSplitPane = surfaceMode === "split" && !isFocusedPane;
   const composerDraft = useComposerThreadDraft(threadId);
   const prompt = composerDraft.prompt;
   const composerImages = composerDraft.images;
@@ -826,10 +830,12 @@ export default function ChatView({
   const [pendingUserInputQuestionIndexByRequestId, setPendingUserInputQuestionIndexByRequestId] =
     useState<Record<string, number>>({});
   const [planSidebarOpen, setPlanSidebarOpen] = useState(false);
+  const [activeTaskListCompact, setActiveTaskListCompact] = useState(false);
   const [isComposerFooterCompact, setIsComposerFooterCompact] = useState(false);
   const [composerCommandPicker, setComposerCommandPicker] = useState<
     null | "fork-target" | "review-target"
   >(null);
+  const [secondaryChromePlaceholderHeight, setSecondaryChromePlaceholderHeight] = useState(88);
   // Tracks whether the user explicitly dismissed the sidebar for the active turn.
   const planSidebarDismissedForTurnRef = useRef<string | null>(null);
   // When set, the thread-change reset effect will open the sidebar instead of closing it.
@@ -891,6 +897,7 @@ export default function ChatView({
   }, [threadId]);
   const composerEditorRef = useRef<ComposerPromptEditorHandle>(null);
   const composerFormRef = useRef<HTMLFormElement>(null);
+  const pendingComposerFocusRef = useRef(false);
   const composerFormHeightRef = useRef(0);
   const composerImagesRef = useRef<ComposerImageAttachment[]>([]);
   const composerSelectLockRef = useRef(false);
@@ -1592,11 +1599,11 @@ export default function ChatView({
     ],
   );
   const planSidebarLabel = sidebarProposedPlan || interactionMode === "plan" ? "Plan" : "Tasks";
-  const activePlan = useMemo(
+  const activeTaskList = useMemo(
     () =>
       latestTurnSettled
         ? null
-        : deriveActivePlanState(threadActivities, activeLatestTurn?.turnId ?? undefined),
+        : deriveActiveTaskListState(threadActivities, activeLatestTurn?.turnId ?? undefined),
     [activeLatestTurn?.turnId, latestTurnSettled, threadActivities],
   );
   const activeBackgroundTasks = useMemo(
@@ -2449,6 +2456,35 @@ export default function ChatView({
     terminalWorkspaceOpen &&
     (terminalState.workspaceLayout === "terminal-only" ||
       terminalState.workspaceActiveTab === "terminal");
+  const secondaryChromeThreadId = activeThread?.id ?? threadId;
+  const shouldDeferSecondaryChrome =
+    activeThread !== undefined && !isCenteredEmptyLanding && !terminalWorkspaceTerminalTabActive;
+  const [secondaryChromeState, setSecondaryChromeState] = useState(() => ({
+    threadId: secondaryChromeThreadId,
+    ready: true,
+  }));
+  const secondaryChromeReady =
+    !shouldDeferSecondaryChrome ||
+    (secondaryChromeState.threadId === secondaryChromeThreadId && secondaryChromeState.ready);
+
+  useEffect(() => {
+    if (!shouldDeferSecondaryChrome) {
+      setSecondaryChromeState((current) =>
+        current.threadId === secondaryChromeThreadId && current.ready
+          ? current
+          : { threadId: secondaryChromeThreadId, ready: true },
+      );
+      return;
+    }
+
+    setSecondaryChromeState({ threadId: secondaryChromeThreadId, ready: false });
+    const frame = window.requestAnimationFrame(() => {
+      setSecondaryChromeState({ threadId: secondaryChromeThreadId, ready: true });
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [secondaryChromeThreadId, shouldDeferSecondaryChrome]);
   const terminalWorkspaceChatTabActive =
     terminalWorkspaceOpen &&
     terminalState.workspaceLayout === "both" &&
@@ -2474,13 +2510,30 @@ export default function ChatView({
   );
 
   const focusComposer = useCallback(() => {
-    composerEditorRef.current?.focusAtEnd();
-  }, []);
+    // Secondary chrome is deferred during thread switches; replay focus once it mounts.
+    const editor = composerEditorRef.current;
+    if (!secondaryChromeReady || !editor) {
+      pendingComposerFocusRef.current = true;
+      return;
+    }
+    pendingComposerFocusRef.current = false;
+    editor.focusAtEnd();
+  }, [secondaryChromeReady]);
   const scheduleComposerFocus = useCallback(() => {
+    pendingComposerFocusRef.current = true;
     window.requestAnimationFrame(() => {
       focusComposer();
     });
   }, [focusComposer]);
+  useEffect(() => {
+    if (!secondaryChromeReady || !pendingComposerFocusRef.current) return;
+    const frame = window.requestAnimationFrame(() => {
+      focusComposer();
+    });
+    return () => {
+      window.cancelAnimationFrame(frame);
+    };
+  }, [focusComposer, secondaryChromeReady, secondaryChromeThreadId]);
   // Keep the two composer picker menus mutually exclusive so shortcuts always open one surface.
   const handleModelPickerOpenChange = useCallback((open: boolean) => {
     setIsModelPickerOpen(open);
@@ -3261,13 +3314,13 @@ export default function ChatView({
     setPlanSidebarOpen((open) => {
       if (open) {
         planSidebarDismissedForTurnRef.current =
-          activePlan?.turnId ?? sidebarProposedPlan?.turnId ?? "__dismissed__";
+          activeTaskList?.turnId ?? sidebarProposedPlan?.turnId ?? "__dismissed__";
       } else {
         planSidebarDismissedForTurnRef.current = null;
       }
       return !open;
     });
-  }, [activePlan?.turnId, sidebarProposedPlan?.turnId]);
+  }, [activeTaskList?.turnId, sidebarProposedPlan?.turnId]);
   const setPlanMode = useCallback(
     (enabled: boolean) => {
       handleInteractionModeChange(enabled ? "plan" : "default");
@@ -3428,7 +3481,11 @@ export default function ChatView({
     onMessagesWheel,
   } = useTranscriptAssistantSelectionAction({
     threadId,
-    enabled: Boolean(activeThread) && pendingUserInputs.length === 0 && !isComposerApprovalState,
+    enabled:
+      Boolean(activeThread) &&
+      !isInactiveSplitPane &&
+      pendingUserInputs.length === 0 &&
+      !isComposerApprovalState,
     composerImagesRef,
     composerAssistantSelectionsRef,
     addComposerAssistantSelectionToDraft,
@@ -3445,11 +3502,18 @@ export default function ChatView({
   });
 
   useLayoutEffect(() => {
+    if (isInactiveSplitPane) return;
     const composerForm = composerFormRef.current;
     if (!composerForm) return;
     const measureComposerFormWidth = () => composerForm.clientWidth;
 
-    composerFormHeightRef.current = composerForm.getBoundingClientRect().height;
+    const measuredHeight = Math.ceil(composerForm.getBoundingClientRect().height);
+    composerFormHeightRef.current = measuredHeight;
+    if (measuredHeight > 0) {
+      setSecondaryChromePlaceholderHeight((current) =>
+        current === measuredHeight ? current : measuredHeight,
+      );
+    }
     setIsComposerFooterCompact(
       shouldUseCompactComposerFooter(measureComposerFormWidth(), {
         hasWideActions: composerFooterHasWideActions,
@@ -3469,6 +3533,12 @@ export default function ChatView({
       const nextHeight = entry.contentRect.height;
       const previousHeight = composerFormHeightRef.current;
       composerFormHeightRef.current = nextHeight;
+      const roundedNextHeight = Math.ceil(nextHeight);
+      if (roundedNextHeight > 0) {
+        setSecondaryChromePlaceholderHeight((current) =>
+          current === roundedNextHeight ? current : roundedNextHeight,
+        );
+      }
       if (previousHeight > 0 && Math.abs(nextHeight - previousHeight) < 0.5) {
         return;
       }
@@ -3484,10 +3554,11 @@ export default function ChatView({
     return () => {
       observer.disconnect();
     };
-  }, [activeThread?.id, composerFooterHasWideActions, scrollToEnd]);
+  }, [activeThread?.id, composerFooterHasWideActions, isInactiveSplitPane, scrollToEnd]);
 
   useEffect(() => {
     setPullRequestDialogState(null);
+    setRenameDialogOpen(false);
     isAtEndRef.current = true;
     showScrollDebouncer.current.cancel();
     setShowScrollToBottom(false);
@@ -3517,14 +3588,14 @@ export default function ChatView({
   }, [activeThread?.id]);
 
   useEffect(() => {
-    if (!activeThread?.id || terminalState.terminalOpen) return;
+    if (!activeThread?.id || terminalState.terminalOpen || isInactiveSplitPane) return;
     const frame = window.requestAnimationFrame(() => {
       focusComposer();
     });
     return () => {
       window.cancelAnimationFrame(frame);
     };
-  }, [activeThread?.id, focusComposer, terminalState.terminalOpen]);
+  }, [activeThread?.id, focusComposer, isInactiveSplitPane, terminalState.terminalOpen]);
 
   useEffect(() => {
     composerImagesRef.current = composerImages;
@@ -3602,12 +3673,25 @@ export default function ChatView({
     setSelectedComposerMentions([]);
   }, [selectedProvider]);
 
+  useLayoutEffect(() => {
+    // ChatView stays mounted across thread switches, so clear thread-local overlays before paint.
+    setOptimisticUserMessages((existing) => {
+      if (existing.length === 0) return existing;
+      for (const message of existing) {
+        revokeUserMessagePreviewUrls(message);
+      }
+      return [];
+    });
+    setExpandedImage(null);
+  }, [threadId]);
+
   useEffect(() => {
     voiceTranscriptionRequestIdRef.current += 1;
     voiceRecordingStartedAtRef.current = null;
     void cancelVoiceRecording();
     setIsVoiceTranscribing(false);
     setOptimisticUserMessages((existing) => {
+      if (existing.length === 0) return existing;
       for (const message of existing) {
         revokeUserMessagePreviewUrls(message);
       }
@@ -6322,7 +6406,7 @@ export default function ChatView({
         applyComposerTriggerReplacement({
           snapshot,
           trigger,
-          base: `@${item.plugin.name} `,
+          base: `@${item.label} `,
           onApplied: () => {
             setSelectedComposerMentions((existing) => {
               const nextMention = item.mention;
@@ -6600,7 +6684,7 @@ export default function ChatView({
               settings.sidebarSide === "right" && "pl-[90px]",
             )}
           >
-            <SidebarHeaderTrigger className="size-7 shrink-0" />
+            <SidebarHeaderNavigationControls />
             <span className="text-xs text-muted-foreground/50">No active thread</span>
           </div>
         )}
@@ -6688,18 +6772,20 @@ export default function ChatView({
       : {}),
   };
 
-  // Composer layout keeps the plan card and footer actions in one render path so
+  // Composer layout keeps the task list and footer actions in one render path so
   // follow-up prompts and normal chat mode stay visually in sync.
-  const planCardAboveComposer = Boolean(activePlan && !planSidebarOpen);
+  const taskListAboveComposer = Boolean(activeTaskList && !planSidebarOpen);
 
-  const composerSection = (
+  const composerSection = secondaryChromeReady ? (
     <>
-      {activePlan && !planSidebarOpen ? (
+      {activeTaskList && !planSidebarOpen ? (
         <div className="mx-auto w-full max-w-3xl">
           <div className="mx-auto w-11/12">
-            <ActivePlanCard
-              activePlan={activePlan}
+            <ActiveTaskListCard
+              activeTaskList={activeTaskList}
               backgroundTaskCount={activeBackgroundTasks?.activeCount ?? 0}
+              compact={activeTaskListCompact}
+              onCompactChange={setActiveTaskListCompact}
               onOpenSidebar={() => setPlanSidebarOpen(true)}
             />
           </div>
@@ -6720,7 +6806,7 @@ export default function ChatView({
                 data-testid="queued-follow-up-row"
                 className={cn(
                   "chat-composer-surface flex items-center gap-2 border border-b-0 border-[color:var(--color-border)] px-2.5 py-2 text-[12px] shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]",
-                  queuedTurnIndex === 0 && !planCardAboveComposer
+                  queuedTurnIndex === 0 && !taskListAboveComposer
                     ? "rounded-t-2xl"
                     : "rounded-none",
                 )}
@@ -6876,6 +6962,7 @@ export default function ChatView({
                     ? composerTerminalContexts
                     : []
                 }
+                mentionReferences={selectedComposerMentions}
                 onRemoveTerminalContext={removeComposerTerminalContextFromDraft}
                 onChange={onPromptChange}
                 onCommandKeyDown={onComposerCommandKey}
@@ -6967,7 +7054,7 @@ export default function ChatView({
                         </>
                       ) : null}
 
-                      {activePlan || sidebarProposedPlan || planSidebarOpen ? (
+                      {activeTaskList || sidebarProposedPlan || planSidebarOpen ? (
                         <>
                           <Separator
                             orientation="vertical"
@@ -7208,6 +7295,13 @@ export default function ChatView({
         </div>
       ) : null}
     </>
+  ) : (
+    <div
+      aria-hidden="true"
+      className="chat-composer-surface mx-auto w-full max-w-3xl rounded-2xl border border-[color:var(--color-border-light)] bg-background/65"
+      data-chat-composer-form="deferred"
+      style={{ height: secondaryChromePlaceholderHeight }}
+    />
   );
 
   return (
@@ -7223,6 +7317,8 @@ export default function ChatView({
         <ChatHeader
           activeThreadId={activeThread.id}
           activeThreadTitle={activeThreadDisplayTitle}
+          activeThreadEntryPoint={terminalState.entryPoint}
+          activeProvider={activeThread.modelSelection.provider}
           activeProjectName={activeProjectDisplayName}
           threadBreadcrumbs={threadBreadcrumbs}
           hideHandoffControls={terminalWorkspaceTerminalTabActive}
@@ -7267,6 +7363,14 @@ export default function ChatView({
                     onClick: onMaximizeSurface,
                   }
                 : null
+          }
+          changeThreadAction={
+            surfaceMode === "split" && isFocusedPane && onChangeThreadInSplitPane
+              ? {
+                  label: "Change thread",
+                  onClick: onChangeThreadInSplitPane,
+                }
+              : null
           }
           onRunProjectScript={onRunProjectScriptFromHeader}
           onAddProjectScript={saveProjectScript}
@@ -7402,12 +7506,14 @@ export default function ChatView({
                     isGitRepo ? "pb-1" : "pb-2.5 sm:pb-3",
                   )}
                 >
-                  {activePlan && !planSidebarOpen ? (
+                  {activeTaskList && !planSidebarOpen ? (
                     <div className="mx-auto w-full max-w-3xl">
                       <div className="mx-auto w-11/12">
-                        <ActivePlanCard
-                          activePlan={activePlan}
+                        <ActiveTaskListCard
+                          activeTaskList={activeTaskList}
                           backgroundTaskCount={activeBackgroundTasks?.activeCount ?? 0}
+                          compact={activeTaskListCompact}
+                          onCompactChange={setActiveTaskListCompact}
                           onOpenSidebar={() => setPlanSidebarOpen(true)}
                         />
                       </div>
@@ -7428,7 +7534,7 @@ export default function ChatView({
                             data-testid="queued-follow-up-row"
                             className={cn(
                               "chat-composer-surface flex items-center gap-2 border border-b-0 border-[color:var(--color-border)] px-2.5 py-2 text-[12px] shadow-[0_1px_0_rgba(255,255,255,0.03)_inset]",
-                              queuedTurnIndex === 0 && !planCardAboveComposer
+                              queuedTurnIndex === 0 && !taskListAboveComposer
                                 ? "rounded-t-2xl"
                                 : "rounded-none",
                             )}
@@ -7589,6 +7695,7 @@ export default function ChatView({
                                 ? composerTerminalContexts
                                 : []
                             }
+                            mentionReferences={selectedComposerMentions}
                             onRemoveTerminalContext={removeComposerTerminalContextFromDraft}
                             onChange={onPromptChange}
                             onCommandKeyDown={onComposerCommandKey}
@@ -7685,7 +7792,7 @@ export default function ChatView({
                                     </>
                                   ) : null}
 
-                                  {activePlan || sidebarProposedPlan || planSidebarOpen ? (
+                                  {activeTaskList || sidebarProposedPlan || planSidebarOpen ? (
                                     <>
                                       <Separator
                                         orientation="vertical"
@@ -7927,17 +8034,19 @@ export default function ChatView({
                     </div>
                   </form>
                 </div>
-                {isGitRepo ? (
-                  <BranchToolbar {...branchToolbarProps} className="mazencode-chat-statusbar" />
-                ) : (
-                  <div className="mazencode-chat-statusbar mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
-                    <RuntimeUsageControls {...runtimeUsageControlsProps} />
-                  </div>
-                )}
+                {secondaryChromeReady ? (
+                  isGitRepo ? (
+                    <BranchToolbar {...branchToolbarProps} />
+                  ) : (
+                    <div className="mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
+                      <RuntimeUsageControls {...runtimeUsageControlsProps} />
+                    </div>
+                  )
+                ) : null}
               </>
             ) : null}
 
-            {pullRequestDialogState ? (
+            {secondaryChromeReady && pullRequestDialogState ? (
               <PullRequestThreadDialog
                 key={pullRequestDialogState.key}
                 open
@@ -7980,7 +8089,7 @@ export default function ChatView({
         {/* Plan sidebar */}
         {planSidebarOpen ? (
           <PlanSidebar
-            activePlan={activePlan}
+            activeTaskList={activeTaskList}
             activeProposedPlan={sidebarProposedPlan}
             markdownCwd={threadWorkspaceCwd ?? undefined}
             workspaceRoot={activeProject?.cwd ?? undefined}
@@ -7988,7 +8097,7 @@ export default function ChatView({
             onClose={() => {
               setPlanSidebarOpen(false);
               // Track that the user explicitly dismissed for this turn so auto-open won't fight them.
-              const turnKey = activePlan?.turnId ?? sidebarProposedPlan?.turnId ?? null;
+              const turnKey = activeTaskList?.turnId ?? sidebarProposedPlan?.turnId ?? null;
               if (turnKey) {
                 planSidebarDismissedForTurnRef.current = turnKey;
               }
@@ -8036,10 +8145,12 @@ export default function ChatView({
         onOpenChange={setWorktreeHandoffDialogOpen}
         onConfirm={confirmWorktreeHandoff}
       />
-      <TranscriptSelectionActionLayer
-        action={pendingTranscriptSelectionAction}
-        onAddToChat={commitTranscriptAssistantSelection}
-      />
+      {isInactiveSplitPane ? null : (
+        <TranscriptSelectionActionLayer
+          action={pendingTranscriptSelectionAction}
+          onAddToChat={commitTranscriptAssistantSelection}
+        />
+      )}
 
       {expandedImage && expandedImageItem && (
         <div
