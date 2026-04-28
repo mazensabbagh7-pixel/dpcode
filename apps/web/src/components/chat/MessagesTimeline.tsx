@@ -641,9 +641,7 @@ export const MessagesTimeline = memo(function MessagesTimeline({
         row.message.role === "assistant" &&
         (() => {
           const messageText = row.message.text || (row.message.streaming ? "" : "(empty response)");
-          const inlineToolEntries = hasOnlyToolToneEntries(row.inlineWorkEntries)
-            ? row.inlineWorkEntries
-            : [];
+          const inlineToolEntries = row.inlineWorkEntries ?? [];
           const inlineToolGroupId =
             inlineToolEntries.length > 0 ? (row.inlineWorkGroupId ?? null) : null;
           const inlineToolExpanded =
@@ -1062,15 +1060,6 @@ function formatMessageMeta(
 
 function formatInlineWorkSummary(_groupedEntries: TimelineWorkEntry[]): string | null {
   return null;
-}
-
-function hasOnlyToolToneEntries<T extends { tone: TimelineWorkEntry["tone"] }>(
-  entries: ReadonlyArray<T> | undefined,
-): entries is ReadonlyArray<T> {
-  if (!entries || entries.length === 0) {
-    return false;
-  }
-  return entries.every((entry) => entry.tone === "tool");
 }
 
 const UserMessageTerminalContextInlineLabel = memo(
@@ -1749,6 +1738,7 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
     workEntry.status === "running" ? "…" : workEntry.status === "failed" ? " failed" : "";
   const durationSuffix =
     workEntry.durationMs !== undefined ? ` · ${formatDuration(workEntry.durationMs)}` : "";
+  const statusBadgeLabel = workEntry.status ?? null;
   const displayText = preview
     ? `${heading}${statusSuffix} ${preview}${durationSuffix}`
     : `${heading}${statusSuffix}${durationSuffix}`;
@@ -2045,6 +2035,21 @@ const SimpleWorkEntryRow = memo(function SimpleWorkEntryRow(props: {
                   )}
                 </p>
               </div>
+              {statusBadgeLabel ? (
+                <span
+                  className={cn(
+                    "ml-2 shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em]",
+                    statusBadgeLabel === "failed"
+                      ? "border-red-400/25 bg-red-500/10 text-red-300/90"
+                      : statusBadgeLabel === "running"
+                        ? "border-amber-300/25 bg-amber-400/10 text-amber-200/90"
+                        : "border-emerald-300/20 bg-emerald-400/10 text-emerald-200/85",
+                  )}
+                  data-work-status={statusBadgeLabel}
+                >
+                  {statusBadgeLabel}
+                </span>
+              ) : null}
               {showIconRight && (
                 <span
                   className="flex shrink-0 items-center justify-center text-muted-foreground/40"

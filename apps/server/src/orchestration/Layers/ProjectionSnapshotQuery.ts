@@ -219,20 +219,21 @@ function toProjectedCheckpoint(row: ProjectionCheckpointDbRow): OrchestrationChe
   };
 }
 
-function buildCanonicalChatProjectMap(
+function buildCanonicalProjectMap(
   projectRows: ReadonlyArray<ProjectionProjectDbRow>,
 ): Map<string, string> {
-  const canonicalProjectIdByWorkspaceRoot = new Map<string, string>();
+  const canonicalProjectIdByProjectKey = new Map<string, string>();
   const duplicateToCanonicalProjectId = new Map<string, string>();
 
   for (const project of projectRows) {
-    if (project.deletedAt !== null || project.kind !== "chat") {
+    if (project.deletedAt !== null) {
       continue;
     }
 
-    const canonicalProjectId = canonicalProjectIdByWorkspaceRoot.get(project.workspaceRoot);
+    const projectKey = `${project.kind}\u0000${project.workspaceRoot}`;
+    const canonicalProjectId = canonicalProjectIdByProjectKey.get(projectKey);
     if (canonicalProjectId === undefined) {
-      canonicalProjectIdByWorkspaceRoot.set(project.workspaceRoot, project.projectId);
+      canonicalProjectIdByProjectKey.set(projectKey, project.projectId);
       continue;
     }
 
@@ -242,7 +243,7 @@ function buildCanonicalChatProjectMap(
   return duplicateToCanonicalProjectId;
 }
 
-function excludeDuplicateActiveChatProjects(
+function excludeDuplicateActiveProjects(
   projectRows: ReadonlyArray<ProjectionProjectDbRow>,
   duplicateToCanonicalProjectId: ReadonlyMap<string, string>,
 ): ReadonlyArray<ProjectionProjectDbRow> {
@@ -252,12 +253,11 @@ function excludeDuplicateActiveChatProjects(
   return projectRows.filter(
     (project) =>
       project.deletedAt !== null ||
-      project.kind !== "chat" ||
       !duplicateToCanonicalProjectId.has(project.projectId),
   );
 }
 
-function canonicalizeDuplicateChatThreadRows(
+function canonicalizeDuplicateProjectThreadRows(
   threadRows: ReadonlyArray<ProjectionThreadDbRow>,
   duplicateToCanonicalProjectId: ReadonlyMap<string, string>,
 ): ReadonlyArray<ProjectionThreadDbRow> {
@@ -1071,12 +1071,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionsByThread.set(row.threadId, toProjectedSession(row));
           }
 
-          const duplicateToCanonicalProjectId = buildCanonicalChatProjectMap(projectRows);
-          const canonicalProjectRows = excludeDuplicateActiveChatProjects(
+          const duplicateToCanonicalProjectId = buildCanonicalProjectMap(projectRows);
+          const canonicalProjectRows = excludeDuplicateActiveProjects(
             projectRows,
             duplicateToCanonicalProjectId,
           );
-          const canonicalThreadRows = canonicalizeDuplicateChatThreadRows(
+          const canonicalThreadRows = canonicalizeDuplicateProjectThreadRows(
             threadRows,
             duplicateToCanonicalProjectId,
           );
@@ -1208,12 +1208,12 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionsByThread.set(row.threadId, toProjectedSession(row));
           }
 
-          const duplicateToCanonicalProjectId = buildCanonicalChatProjectMap(projectRows);
-          const canonicalProjectRows = excludeDuplicateActiveChatProjects(
+          const duplicateToCanonicalProjectId = buildCanonicalProjectMap(projectRows);
+          const canonicalProjectRows = excludeDuplicateActiveProjects(
             projectRows,
             duplicateToCanonicalProjectId,
           );
-          const canonicalThreadRows = canonicalizeDuplicateChatThreadRows(
+          const canonicalThreadRows = canonicalizeDuplicateProjectThreadRows(
             threadRows,
             duplicateToCanonicalProjectId,
           );

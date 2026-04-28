@@ -168,6 +168,83 @@ it.layer(BaseTestLayer)("OrchestrationProjectionPipeline", (it) => {
       }
     }),
   );
+
+  it.effect("bootstraps project rows beyond the event-store default replay limit", () =>
+    Effect.gen(function* () {
+      const projectionPipeline = yield* OrchestrationProjectionPipeline;
+      const eventStore = yield* OrchestrationEventStore;
+      const sql = yield* SqlClient.SqlClient;
+      const now = new Date().toISOString();
+
+      yield* Effect.forEach(
+        Array.from({ length: 1_000 }, (_, index) => index + 1),
+        (index) =>
+          eventStore.append({
+            type: "thread.created",
+            eventId: EventId.makeUnsafe(`evt-filler-${index}`),
+            aggregateKind: "thread",
+            aggregateId: ThreadId.makeUnsafe(`thread-filler-${index}`),
+            occurredAt: now,
+            commandId: CommandId.makeUnsafe(`cmd-filler-${index}`),
+            causationEventId: null,
+            correlationId: CommandId.makeUnsafe(`cmd-filler-${index}`),
+            metadata: {},
+            payload: {
+              threadId: ThreadId.makeUnsafe(`thread-filler-${index}`),
+              projectId: ProjectId.makeUnsafe("project-filler"),
+              title: `Filler ${index}`,
+              modelSelection: {
+                provider: "codex",
+                model: "gpt-5-codex",
+              },
+              runtimeMode: "full-access",
+              branch: null,
+              worktreePath: null,
+              createdAt: now,
+              updatedAt: now,
+            },
+          }),
+        { concurrency: 1 },
+      );
+
+      yield* eventStore.append({
+        type: "project.created",
+        eventId: EventId.makeUnsafe("evt-project-after-default-limit"),
+        aggregateKind: "project",
+        aggregateId: ProjectId.makeUnsafe("project-after-default-limit"),
+        occurredAt: now,
+        commandId: CommandId.makeUnsafe("cmd-project-after-default-limit"),
+        causationEventId: null,
+        correlationId: CommandId.makeUnsafe("cmd-project-after-default-limit"),
+        metadata: {},
+        payload: {
+          projectId: ProjectId.makeUnsafe("project-after-default-limit"),
+          title: "Project After Default Limit",
+          workspaceRoot: "/tmp/project-after-default-limit",
+          defaultModelSelection: null,
+          scripts: [],
+          createdAt: now,
+          updatedAt: now,
+        },
+      });
+
+      yield* projectionPipeline.bootstrap;
+
+      const projectRows = yield* sql<{ readonly projectId: string; readonly workspaceRoot: string }>`
+        SELECT
+          project_id AS "projectId",
+          workspace_root AS "workspaceRoot"
+        FROM projection_projects
+        WHERE project_id = 'project-after-default-limit'
+      `;
+      assert.deepEqual(projectRows, [
+        {
+          projectId: "project-after-default-limit",
+          workspaceRoot: "/tmp/project-after-default-limit",
+        },
+      ]);
+    }),
+  );
 });
 
 it.layer(Layer.fresh(makeProjectionPipelinePrefixedTestLayer("t3-base-")))(

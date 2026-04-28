@@ -248,10 +248,23 @@ const makeOrchestrationEngine = Effect.gen(function* () {
       snapshotSequence = minSequence;
     }
 
+    const canonicalProjectIdByProjectKey = new Map<string, string>();
+    const canonicalProjectRows = projectRows.filter((row) => {
+      if (row.deletedAt !== null) {
+        return true;
+      }
+      const projectKey = `${row.kind}\u0000${row.workspaceRoot}`;
+      if (!canonicalProjectIdByProjectKey.has(projectKey)) {
+        canonicalProjectIdByProjectKey.set(projectKey, row.projectId);
+        return true;
+      }
+      return false;
+    });
+
     const nextReadModel: OrchestrationReadModel = {
       ...readModel,
       snapshotSequence,
-      projects: projectRows.map((row) => ({
+      projects: canonicalProjectRows.map((row) => ({
         id: row.projectId as ProjectId,
         kind: row.kind,
         title: row.title,
@@ -337,7 +350,7 @@ const makeOrchestrationEngine = Effect.gen(function* () {
     const remainingBudgetMs = Math.max(0, envelope.deadlineAtMs - Date.now());
     const reconcileReadModelAfterDispatchFailure = Effect.gen(function* () {
       const persistedEvents = yield* Stream.runCollect(
-        eventStore.readFromSequence(dispatchStartSequence),
+        eventStore.readFromSequence(dispatchStartSequence, Number.MAX_SAFE_INTEGER),
       ).pipe(Effect.map((chunk): OrchestrationEvent[] => Array.from(chunk)));
       if (persistedEvents.length === 0) {
         return;

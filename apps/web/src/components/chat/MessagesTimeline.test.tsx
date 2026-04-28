@@ -1501,6 +1501,68 @@ describe("MessagesTimeline", () => {
     expect(markup).not.toContain("&gt;/bin/zsh -lc");
   });
 
+  it("renders inline work rows even when provider activity is not tool-toned", async () => {
+    const { MessagesTimeline } = await import("./MessagesTimeline");
+    const markup = renderToStaticMarkup(
+      <MessagesTimeline
+        hasMessages
+        isWorking={false}
+        activeTurnInProgress={false}
+        activeTurnStartedAt={null}
+        timelineEntries={[
+          {
+            id: "entry-inline-info-work",
+            kind: "work",
+            createdAt: "2026-03-17T19:12:28.000Z",
+            entry: {
+              id: "work-inline-info-command",
+              createdAt: "2026-03-17T19:12:28.000Z",
+              label: "Ran command",
+              tone: "info",
+              itemType: "command_execution",
+              toolTitle: "Checked repo status",
+              command: "git status --short",
+              status: "completed",
+              durationMs: 230,
+            },
+          },
+          {
+            id: "entry-assistant-inline-info-work",
+            kind: "message",
+            createdAt: "2026-03-17T19:12:29.000Z",
+            message: {
+              id: MessageId.makeUnsafe("message-assistant-inline-info-work"),
+              role: "assistant",
+              text: "done",
+              createdAt: "2026-03-17T19:12:29.000Z",
+              completedAt: "2026-03-17T19:12:30.000Z",
+              streaming: false,
+            },
+          },
+        ]}
+        completionDividerBeforeEntryId={null}
+        completionSummary={null}
+        turnDiffSummaryByAssistantMessageId={new Map()}
+        nowIso="2026-03-17T19:12:30.000Z"
+        expandedWorkGroups={{}}
+        onToggleWorkGroup={() => {}}
+        onOpenTurnDiff={() => {}}
+        revertTurnCountByUserMessageId={new Map()}
+        onRevertUserMessage={() => {}}
+        isRevertingCheckpoint={false}
+        onImageExpand={() => {}}
+        markdownCwd={undefined}
+        resolvedTheme="dark"
+        timestampFormat="locale"
+        workspaceRoot={undefined}
+      />,
+    );
+
+    expect(markup).toContain("Checked repo status");
+    expect(markup).toContain("git status");
+    expect(markup).toContain('data-work-status="completed"');
+  });
+
   it("shows a globe icon next to compact web-search rows", async () => {
     const { MessagesTimeline } = await import("./MessagesTimeline");
     const markup = renderToStaticMarkup(
@@ -1870,7 +1932,7 @@ describe("MessagesTimeline", () => {
       />,
     );
 
-    expect(markup).toContain("1 File changed");
+    expect(markup).toContain("1 file changed");
     expect(markup).toContain('aria-expanded="true"');
     expect(markup).toContain("font-chat-code truncate font-normal");
     expect(markup).toContain("apps/web/src/components/Sidebar.tsx");

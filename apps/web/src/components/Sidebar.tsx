@@ -1849,9 +1849,16 @@ export default function Sidebar() {
           }
 
           const duplicateProjectId = extractDuplicateProjectCreateProjectId(description);
-          const recovered = duplicateProjectId
-            ? await recoverExistingProjectFromServer(api, ProjectId.makeUnsafe(duplicateProjectId))
-            : await recoverExistingProjectByWorkspaceRootFromServer(api, cwd);
+          let recovered = false;
+          if (duplicateProjectId) {
+            recovered = await recoverExistingProjectFromServer(
+              api,
+              ProjectId.makeUnsafe(duplicateProjectId),
+            );
+          }
+          if (!recovered) {
+            recovered = await recoverExistingProjectByWorkspaceRootFromServer(api, cwd);
+          }
           if (recovered) {
             finishAddingProject();
             return;

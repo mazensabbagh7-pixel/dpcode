@@ -506,6 +506,104 @@ projectionSnapshotLayer("ProjectionSnapshotQuery", (it) => {
     }),
   );
 
+  it.effect("canonicalizes duplicate active project rows with the same workspace root", () =>
+    Effect.gen(function* () {
+      const snapshotQuery = yield* ProjectionSnapshotQuery;
+      const sql = yield* SqlClient.SqlClient;
+
+      yield* sql`DELETE FROM projection_projects`;
+      yield* sql`DELETE FROM projection_threads`;
+      yield* sql`DELETE FROM projection_state`;
+
+      yield* sql`
+        INSERT INTO projection_projects (
+          project_id,
+          kind,
+          title,
+          workspace_root,
+          default_model_selection_json,
+          scripts_json,
+          created_at,
+          updated_at,
+          deleted_at
+        )
+        VALUES
+          (
+            'project-documents-original',
+            'project',
+            'Documents',
+            '/home/mazen/Documents',
+            '{"provider":"codex","model":"gpt-5-codex"}',
+            '[]',
+            '2026-02-25T00:00:00.000Z',
+            '2026-02-25T00:00:01.000Z',
+            NULL
+          ),
+          (
+            'project-documents-duplicate',
+            'project',
+            'Documents',
+            '/home/mazen/Documents',
+            '{"provider":"codex","model":"gpt-5-codex"}',
+            '[]',
+            '2026-02-25T00:00:02.000Z',
+            '2026-02-25T00:00:03.000Z',
+            NULL
+          )
+      `;
+
+      yield* sql`
+        INSERT INTO projection_threads (
+          thread_id,
+          project_id,
+          title,
+          model_selection_json,
+          runtime_mode,
+          interaction_mode,
+          env_mode,
+          branch,
+          worktree_path,
+          latest_turn_id,
+          created_at,
+          updated_at,
+          deleted_at
+        )
+        VALUES (
+          'thread-duplicate-project',
+          'project-documents-duplicate',
+          'Duplicate Project Thread',
+          '{"provider":"codex","model":"gpt-5-codex"}',
+          'full-access',
+          'default',
+          'local',
+          NULL,
+          NULL,
+          NULL,
+          '2026-02-25T00:00:04.000Z',
+          '2026-02-25T00:00:05.000Z',
+          NULL
+        )
+      `;
+
+      const snapshot = yield* snapshotQuery.getSnapshot();
+      assert.deepEqual(
+        snapshot.projects.map((project) => project.id),
+        [asProjectId("project-documents-original")],
+      );
+      assert.equal(snapshot.threads[0]?.projectId, asProjectId("project-documents-original"));
+
+      const shellSnapshot = yield* snapshotQuery.getShellSnapshot();
+      assert.deepEqual(
+        shellSnapshot.projects.map((project) => project.id),
+        [asProjectId("project-documents-original")],
+      );
+      assert.equal(
+        shellSnapshot.threads[0]?.projectId,
+        asProjectId("project-documents-original"),
+      );
+    }),
+  );
+
   it.effect("decodes persisted lastKnownPr JSON in read and shell snapshots", () =>
     Effect.gen(function* () {
       const snapshotQuery = yield* ProjectionSnapshotQuery;
