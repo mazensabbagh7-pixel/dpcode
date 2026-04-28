@@ -57,27 +57,9 @@ export default Effect.gen(function* () {
   `;
 
   yield* sql`
-    WITH latest_turns AS (
-      SELECT
-        thread_id,
-        state,
-        completed_at,
-        requested_at,
-        ROW_NUMBER() OVER (
-          PARTITION BY thread_id
-          ORDER BY requested_at DESC, COALESCE(turn_id, '') DESC, row_id DESC
-        ) AS row_number
-      FROM projection_turns
-      WHERE turn_id IS NOT NULL
-    )
     UPDATE agent_runs
     SET
       status = CASE
-        WHEN NOT EXISTS (
-          SELECT 1
-          FROM projection_threads
-          WHERE projection_threads.thread_id = agent_runs.thread_id
-        ) THEN 'cancelled'
         WHEN EXISTS (
           SELECT 1
           FROM projection_threads
@@ -92,25 +74,17 @@ export default Effect.gen(function* () {
         ) THEN 'failed'
         WHEN EXISTS (
           SELECT 1
-          FROM latest_turns
-          WHERE latest_turns.thread_id = agent_runs.thread_id
-            AND latest_turns.row_number = 1
-            AND latest_turns.state = 'error'
-            AND latest_turns.completed_at IS NOT NULL
+          FROM projection_turns
+          WHERE projection_turns.thread_id = agent_runs.thread_id
+            AND projection_turns.state = 'error'
+          ORDER BY projection_turns.requested_at DESC, projection_turns.turn_id DESC
+          LIMIT 1
         ) THEN 'failed'
         WHEN EXISTS (
           SELECT 1
           FROM projection_thread_sessions
           WHERE projection_thread_sessions.thread_id = agent_runs.thread_id
             AND projection_thread_sessions.status IN ('stopped', 'interrupted')
-        ) THEN 'cancelled'
-        WHEN EXISTS (
-          SELECT 1
-          FROM latest_turns
-          WHERE latest_turns.thread_id = agent_runs.thread_id
-            AND latest_turns.row_number = 1
-            AND latest_turns.state = 'interrupted'
-            AND latest_turns.completed_at IS NOT NULL
         ) THEN 'cancelled'
         ELSE 'complete'
       END,
@@ -120,11 +94,11 @@ export default Effect.gen(function* () {
           '%s',
           COALESCE(
             (
-              SELECT latest_turns.completed_at
-              FROM latest_turns
-              WHERE latest_turns.thread_id = agent_runs.thread_id
-                AND latest_turns.row_number = 1
-                AND latest_turns.completed_at IS NOT NULL
+              SELECT projection_turns.completed_at
+              FROM projection_turns
+              WHERE projection_turns.thread_id = agent_runs.thread_id
+                AND projection_turns.completed_at IS NOT NULL
+              ORDER BY projection_turns.completed_at DESC, projection_turns.turn_id DESC
               LIMIT 1
             ),
             (
@@ -154,30 +128,17 @@ export default Effect.gen(function* () {
             )
             OR EXISTS (
               SELECT 1
-              FROM latest_turns
-              WHERE latest_turns.thread_id = agent_runs.thread_id
-                AND latest_turns.row_number = 1
-                AND latest_turns.state = 'error'
-                AND latest_turns.completed_at IS NOT NULL
+              FROM projection_turns
+              WHERE projection_turns.thread_id = agent_runs.thread_id
+                AND projection_turns.state = 'error'
             )
           )
           THEN 'Agent run was reconciled from a failed terminal thread state.'
         ELSE error_message
       END
     WHERE status IN ('queued', 'running')
-      AND NOT EXISTS (
-        SELECT 1
-        FROM projection_thread_sessions
-        WHERE projection_thread_sessions.thread_id = agent_runs.thread_id
-          AND projection_thread_sessions.status = 'running'
-      )
       AND (
-        NOT EXISTS (
-          SELECT 1
-          FROM projection_threads
-          WHERE projection_threads.thread_id = agent_runs.thread_id
-        )
-        OR EXISTS (
+        EXISTS (
           SELECT 1
           FROM projection_threads
           WHERE projection_threads.thread_id = agent_runs.thread_id
@@ -191,10 +152,9 @@ export default Effect.gen(function* () {
         )
         OR EXISTS (
           SELECT 1
-          FROM latest_turns
-          WHERE latest_turns.thread_id = agent_runs.thread_id
-            AND latest_turns.row_number = 1
-            AND latest_turns.completed_at IS NOT NULL
+          FROM projection_turns
+          WHERE projection_turns.thread_id = agent_runs.thread_id
+            AND projection_turns.completed_at IS NOT NULL
         )
       )
   `;
