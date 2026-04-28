@@ -485,6 +485,60 @@ describe("store pure functions", () => {
     });
   });
 
+  it("ignores duplicate live project.created events for an existing workspace root", () => {
+    const initialState = syncServerReadModel(
+      {
+        projects: [],
+        threads: [],
+        sidebarThreadSummaryById: {},
+        threadsHydrated: false,
+      },
+      {
+        snapshotSequence: 1,
+        updatedAt: "2026-02-27T00:00:00.000Z",
+        projects: [
+          {
+            id: ProjectId.makeUnsafe("project-canonical"),
+            kind: "project",
+            title: "Documents",
+            workspaceRoot: "/home/mazen/Documents",
+            defaultModelSelection: {
+              provider: "codex",
+              model: "gpt-5-codex",
+            },
+            scripts: [],
+            createdAt: "2026-02-27T00:00:00.000Z",
+            updatedAt: "2026-02-27T00:00:00.000Z",
+            deletedAt: null,
+          },
+        ],
+        threads: [],
+      },
+    );
+
+    const next = applyOrchestrationEvents(initialState, [
+      makeDomainEvent(
+        "project.created",
+        {
+          projectId: ProjectId.makeUnsafe("project-duplicate"),
+          title: "Documents",
+          workspaceRoot: "/home/mazen/Documents",
+          defaultModelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
+          scripts: [],
+          createdAt: "2026-02-27T00:05:00.000Z",
+          updatedAt: "2026-02-27T00:05:00.000Z",
+        },
+        { aggregateKind: "project" },
+      ),
+    ]);
+
+    expect(next.projects).toHaveLength(1);
+    expect(next.projects[0]?.id).toBe(ProjectId.makeUnsafe("project-canonical"));
+  });
+
   it("updates existing projects immediately from live project.meta-updated events", () => {
     const initialState: AppState = {
       projects: [

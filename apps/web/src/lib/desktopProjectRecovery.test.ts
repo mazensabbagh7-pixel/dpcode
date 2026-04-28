@@ -4,7 +4,10 @@
 import { ProjectId, ThreadId, type OrchestrationReadModel } from "@t3tools/contracts";
 import { describe, expect, it } from "vitest";
 
-import { hasLiveThreadsWithMissingProjects } from "./desktopProjectRecovery";
+import {
+  hasDuplicateLiveProjectWorkspaceRoots,
+  hasLiveThreadsWithMissingProjects,
+} from "./desktopProjectRecovery";
 
 function makeProject(
   overrides: Partial<OrchestrationReadModel["projects"][number]> = {},
@@ -110,5 +113,29 @@ describe("desktopProjectRecovery", () => {
     });
 
     expect(hasLiveThreadsWithMissingProjects(snapshot)).toBe(false);
+  });
+
+  it("detects duplicate live project rows for the same workspace root", () => {
+    const projects = [
+      makeProject({ id: ProjectId.makeUnsafe("project-canonical") }),
+      makeProject({
+        id: ProjectId.makeUnsafe("project-duplicate"),
+        createdAt: "2026-04-20T09:00:00.000Z",
+      }),
+    ];
+
+    expect(hasDuplicateLiveProjectWorkspaceRoots(projects)).toBe(true);
+  });
+
+  it("ignores deleted duplicate project rows", () => {
+    const projects = [
+      makeProject({ id: ProjectId.makeUnsafe("project-canonical") }),
+      makeProject({
+        id: ProjectId.makeUnsafe("project-duplicate"),
+        deletedAt: "2026-04-20T09:00:00.000Z",
+      }),
+    ];
+
+    expect(hasDuplicateLiveProjectWorkspaceRoots(projects)).toBe(false);
   });
 });

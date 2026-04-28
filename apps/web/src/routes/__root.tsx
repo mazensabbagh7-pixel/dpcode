@@ -51,7 +51,10 @@ import { useAppTypography } from "../hooks/useAppTypography";
 import { useTheme } from "../hooks/useTheme";
 import { useAppSettings } from "../appSettings";
 import { invalidateGitQueries } from "../lib/gitReactQuery";
-import { hasLiveThreadsWithMissingProjects } from "../lib/desktopProjectRecovery";
+import {
+  hasDuplicateLiveProjectWorkspaceRoots,
+  hasLiveThreadsWithMissingProjects,
+} from "../lib/desktopProjectRecovery";
 import { parseDiffRouteSearch } from "../diffRouteSearch";
 import { resolveSplitViewThreadIds, selectSplitView, useSplitViewStore } from "../splitViewStore";
 import { providerDiscoveryQueryKeys } from "../lib/providerDiscoveryReactQuery";
@@ -797,7 +800,20 @@ function DesktopProjectBootstrap() {
 
     const projectIds = new Set(projects.map((project) => project.id));
     const hasThreadWithoutProject = threads.some((thread) => !projectIds.has(thread.projectId));
-    if (projects.length > 0 && !hasThreadWithoutProject) {
+    const hasDuplicateProjects = hasDuplicateLiveProjectWorkspaceRoots(
+      projects.map((project) => ({
+        id: project.id,
+        kind: project.kind,
+        title: project.remoteName,
+        workspaceRoot: project.cwd,
+        defaultModelSelection: project.defaultModelSelection,
+        scripts: project.scripts,
+        createdAt: project.createdAt ?? new Date(0).toISOString(),
+        updatedAt: project.updatedAt ?? project.createdAt ?? new Date(0).toISOString(),
+        deletedAt: null,
+      })),
+    );
+    if (projects.length > 0 && !hasThreadWithoutProject && !hasDuplicateProjects) {
       return;
     }
 

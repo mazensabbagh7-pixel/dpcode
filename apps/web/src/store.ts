@@ -678,7 +678,13 @@ function normalizeProjectFromShell(
 }
 
 function upsertProjectFromReadModel(state: AppState, incoming: ReadModelProject): AppState {
-  const existingProject = state.projects.find((project) => project.id === incoming.id);
+  const existingProject =
+    state.projects.find((project) => project.id === incoming.id) ??
+    state.projects.find(
+      (project) =>
+        project.kind === (incoming.kind ?? "project") &&
+        projectCwdKey(project.cwd) === projectCwdKey(incoming.workspaceRoot),
+    );
   const nextProject = normalizeProjectFromReadModel(incoming, existingProject);
 
   if (existingProject) {
@@ -688,7 +694,7 @@ function upsertProjectFromReadModel(state: AppState, incoming: ReadModelProject)
     return {
       ...state,
       projects: state.projects.map((project) =>
-        project.id === incoming.id ? nextProject : project,
+        project.id === existingProject.id ? nextProject : project,
       ),
     };
   }
@@ -2782,7 +2788,16 @@ function applyOrchestrationEvent(
   },
 ): AppState {
   switch (event.type) {
-    case "project.created":
+    case "project.created": {
+      const existingProject = state.projects.find(
+        (project) =>
+          project.id !== event.payload.projectId &&
+          project.kind === (event.payload.kind ?? "project") &&
+          projectCwdKey(project.cwd) === projectCwdKey(event.payload.workspaceRoot),
+      );
+      if (existingProject) {
+        return state;
+      }
       return upsertProjectFromReadModel(state, {
         id: event.payload.projectId,
         kind: event.payload.kind,
@@ -2794,6 +2809,7 @@ function applyOrchestrationEvent(
         updatedAt: event.payload.updatedAt,
         deletedAt: null,
       });
+    }
 
     case "project.meta-updated": {
       const existingProject = state.projects.find(
