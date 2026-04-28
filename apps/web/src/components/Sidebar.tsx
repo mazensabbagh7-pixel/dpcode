@@ -747,11 +747,11 @@ function prStatusIndicator(pr: ThreadPr): PrStatusIndicator | null {
 
 function MazenCodeWordmark() {
   return (
-    <span className="flex min-w-0 items-center gap-2" aria-label={APP_BASE_NAME}>
+    <span className="flex h-8 min-w-0 items-center justify-center gap-2" aria-label={APP_BASE_NAME}>
       <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/55 bg-background/70">
         <img alt="" className="size-full object-cover" draggable={false} src="/dpcode.png" />
       </span>
-      <span className="truncate text-[14px] font-semibold tracking-tight text-foreground">
+      <span className="min-w-0 truncate text-center text-[14px] font-semibold tracking-tight text-foreground">
         {APP_COMPACT_NAME}
       </span>
     </span>
@@ -5161,13 +5161,13 @@ export default function Sidebar() {
   }, [allProjectsExpanded, collapseProjectsExcept, focusedProjectId, setAllProjectsExpanded]);
 
   const wordmark = (
-    <div className="flex w-full items-center gap-1.5">
-      <SidebarTrigger className="shrink-0 md:hidden" />
+    <div className="relative flex h-full w-full items-center justify-center">
+      <SidebarTrigger className="absolute left-0 top-1/2 shrink-0 -translate-y-1/2 md:hidden" />
       <Tooltip>
         <TooltipTrigger
           render={
-            <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-system-ui">
-              <div className="flex min-w-0 items-center gap-1">
+            <div className="mx-auto flex h-8 max-w-[calc(100%-2.5rem)] min-w-0 cursor-pointer items-center justify-center font-system-ui">
+              <div className="flex min-w-0 items-center justify-center">
                 <MazenCodeWordmark />
               </div>
             </div>
@@ -5178,7 +5178,7 @@ export default function Sidebar() {
         </TooltipPopup>
       </Tooltip>
       <SidebarTrigger
-        className="hidden size-7 shrink-0 text-muted-foreground/75 hover:text-foreground md:inline-flex ml-auto"
+        className="absolute right-0 top-1/2 hidden size-7 shrink-0 -translate-y-1/2 text-muted-foreground/75 hover:text-foreground md:inline-flex"
         aria-label="Toggle thread sidebar"
       />
     </div>
