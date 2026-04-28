@@ -906,74 +906,8 @@ describe("MessagesTimeline", () => {
     expect(markup).toContain("git status");
     expect(markup).toContain("3s");
     expect(markup).toContain("live-turn-status-row__pulse");
-    expect(markup).toContain("live-turn-activity-stack");
-    expect(markup).toContain('data-live-work-status="running"');
-  });
-
-  it("renders recent live activity rows with mixed statuses", async () => {
-    const { MessagesTimeline } = await import("./MessagesTimeline");
-    const markup = renderToStaticMarkup(
-      <MessagesTimeline
-        hasMessages
-        isWorking
-        activeTurnInProgress
-        activeTurnStartedAt="2026-03-17T19:12:28.000Z"
-        timelineEntries={[
-          {
-            id: "entry-completed-read",
-            kind: "work",
-            createdAt: "2026-03-17T19:12:29.000Z",
-            entry: {
-              id: "work-completed-read",
-              createdAt: "2026-03-17T19:12:29.000Z",
-              label: "Read file",
-              tone: "tool",
-              requestKind: "file-read",
-              toolTitle: "Read MessagesTimeline.tsx",
-              detail: "apps/web/src/components/chat/MessagesTimeline.tsx",
-              status: "completed",
-              durationMs: 120,
-            },
-          },
-          {
-            id: "entry-running-edit",
-            kind: "work",
-            createdAt: "2026-03-17T19:12:30.000Z",
-            entry: {
-              id: "work-running-edit",
-              createdAt: "2026-03-17T19:12:30.000Z",
-              label: "Edited file",
-              tone: "tool",
-              itemType: "file_change",
-              toolTitle: "Updating live status UI",
-              changedFiles: ["apps/web/src/components/chat/MessagesTimeline.tsx"],
-              status: "running",
-            },
-          },
-        ]}
-        completionDividerBeforeEntryId={null}
-        completionSummary={null}
-        turnDiffSummaryByAssistantMessageId={new Map()}
-        nowIso="2026-03-17T19:12:32.000Z"
-        expandedWorkGroups={{}}
-        onToggleWorkGroup={() => {}}
-        onOpenTurnDiff={() => {}}
-        revertTurnCountByUserMessageId={new Map()}
-        onRevertUserMessage={() => {}}
-        isRevertingCheckpoint={false}
-        onImageExpand={() => {}}
-        markdownCwd={undefined}
-        resolvedTheme="light"
-        timestampFormat="locale"
-        workspaceRoot={undefined}
-      />,
-    );
-
-    expect(markup).toContain("Read MessagesTimeline.tsx");
-    expect(markup).toContain("Updating live status UI...");
-    expect(markup).toContain("MessagesTimeline.tsx");
-    expect(markup).toContain('data-live-work-status="completed"');
-    expect(markup).toContain('data-live-work-status="running"');
+    expect(markup).not.toContain("live-turn-activity-stack");
+    expect(markup).not.toContain("data-live-work-status");
   });
 
   it("folds work log summaries into the next assistant message footer", async () => {
