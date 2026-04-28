@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.40",
+    date: "Apr 27",
+    features: [
+      {
+        id: "hermes-staging-home-hotfix",
+        title: "Hermes uses the staging profile",
+        description:
+          "Mac Mini Hermes launches now set HERMES_HOME to the existing staging profile so DP Code uses the same configured provider/model path as Hermes Telegram without managing the gateway.",
+      },
+    ],
+  },
+  {
     version: "0.0.39",
     date: "Apr 27",
     features: [

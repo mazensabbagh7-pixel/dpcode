@@ -64,6 +64,7 @@ const GEMINI_PROVIDER = "gemini" as const;
 const OPENCODE_PROVIDER = "opencode" as const;
 const HERMES_PROVIDER = "hermes" as const;
 const HERMES_SSH_HOST = "mac-mini";
+const HERMES_HOME = "~/.hermes-staging";
 const HERMES_REMOTE_CWD = "~/.hermes-staging/hermes-agent";
 const HERMES_REMOTE_COMMAND = "./venv/bin/hermes";
 type ProviderStatuses = ReadonlyArray<ServerProviderStatus>;
@@ -757,6 +758,7 @@ const runHermesCommand = (args: ReadonlyArray<string>) =>
       "cd",
       shellQuoteRemotePath(HERMES_REMOTE_CWD),
       "&&",
+      `HERMES_HOME=${shellQuoteRemotePath(HERMES_HOME)}`,
       shellQuote(HERMES_REMOTE_COMMAND),
       ...args.map(shellQuote),
     ].join(" ");

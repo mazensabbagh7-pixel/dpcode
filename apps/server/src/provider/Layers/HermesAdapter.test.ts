@@ -41,6 +41,7 @@ describe("HermesAdapter helpers", () => {
       "mac-mini",
     ]);
     assert.match(args[5]!, /cd \$HOME\/'\.hermes-staging\/hermes-agent'/);
+    assert.match(args[5]!, /HERMES_HOME=\$HOME\/'\.hermes-staging'/);
     assert.match(args[5]!, /'\.\/venv\/bin\/hermes' 'chat' '--query' 'reply with OK'/);
     assert.match(args[5]!, /'--source' 'mazen-code'/);
     assert.match(args[5]!, /'--resume' 'session-1'/);
@@ -54,6 +55,7 @@ describe("HermesAdapter helpers", () => {
     });
 
     assert.match(command, /'\.\/venv\/bin\/hermes' 'chat'/);
+    assert.match(command, /HERMES_HOME=\$HOME\/'\.hermes-staging'/);
     assert.doesNotMatch(
       command,
       /\b(launchctl|openclaw|telegram|gateway|run_agent|start_telegram|restart_telegram)\b/i,

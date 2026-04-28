@@ -24,6 +24,7 @@ import { HermesAdapter, type HermesAdapterShape } from "../Services/HermesAdapte
 
 const PROVIDER = "hermes" as const;
 export const DEFAULT_HERMES_SSH_HOST = "mac-mini";
+export const DEFAULT_HERMES_HOME = "~/.hermes-staging";
 export const DEFAULT_HERMES_REMOTE_CWD = "~/.hermes-staging/hermes-agent";
 export const DEFAULT_HERMES_COMMAND = "./venv/bin/hermes";
 const HERMES_SOURCE = "mazen-code";
@@ -125,6 +126,7 @@ export function buildHermesRemoteShellCommand(input: HermesRemoteCommandInput): 
     "cd",
     shellQuoteRemotePath(remoteCwd),
     "&&",
+    `HERMES_HOME=${shellQuoteRemotePath(DEFAULT_HERMES_HOME)}`,
     shellQuote(command),
     ...args.map(shellQuote),
   ].join(" ");
