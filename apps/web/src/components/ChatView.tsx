@@ -7319,10 +7319,10 @@ export default function ChatView({
                   <div className="flex flex-col items-center gap-4 px-6 pb-5 text-center select-none">
                     <img
                       alt={APP_MARK_ALT}
-                      className="size-11 object-contain opacity-90"
+                      className="size-11 rounded-[12px] object-cover opacity-90"
                       draggable={false}
                       height={96}
-                      src="/dpcode-hero.png"
+                      src="/dpcode.png"
                       width={96}
                     />
                     <h2 className="text-[26px] font-normal leading-[1.15] tracking-[-0.015em] text-foreground/95 sm:text-[30px]">

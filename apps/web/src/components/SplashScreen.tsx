@@ -22,7 +22,7 @@ export function SplashScreen({
         >
           <img
             alt={APP_MARK_ALT}
-            className="size-14 object-contain"
+            className="size-14 rounded-[14px] object-cover"
             draggable={false}
             src="/dpcode.png"
           />

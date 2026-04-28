@@ -270,7 +270,7 @@ export async function buildDesktopDiagnosticsReport(
 ): Promise<DesktopDiagnosticsReport> {
   const defaultApplicationsDir = Path.join(OS.homedir(), "Applications");
   const paths = [
-    inspectPathStatus("DP Code home", input.baseDir),
+    inspectPathStatus("MazenCode home", input.baseDir),
     inspectPathStatus("Server state", input.stateDir),
     inspectPathStatus("Chat database", Path.join(input.stateDir, "state.sqlite")),
     inspectPathStatus("Log directory", input.logDir),

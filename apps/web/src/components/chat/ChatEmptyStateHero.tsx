@@ -15,10 +15,10 @@ export const ChatEmptyStateHero = memo(function ChatEmptyStateHero({
     <div className="flex flex-col items-center gap-5 select-none">
       <img
         alt={APP_MARK_ALT}
-        className="size-12 object-contain opacity-90"
+        className="size-12 rounded-[12px] object-cover opacity-90"
         draggable={false}
         height={112}
-        src="/dpcode-hero.png"
+        src="/dpcode.png"
         width={112}
       />
 

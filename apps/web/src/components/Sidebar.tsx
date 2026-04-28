@@ -749,7 +749,7 @@ function MazenCodeWordmark() {
   return (
     <span className="flex min-w-0 items-center gap-2" aria-label={APP_BASE_NAME}>
       <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/55 bg-background/70">
-        <img alt="" className="size-4 object-contain" draggable={false} src="/dpcode-hero.png" />
+        <img alt="" className="size-full object-cover" draggable={false} src="/dpcode.png" />
       </span>
       <span className="truncate text-[14px] font-semibold tracking-tight text-foreground">
         {APP_COMPACT_NAME}
