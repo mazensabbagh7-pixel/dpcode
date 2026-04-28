@@ -885,30 +885,12 @@ export const MessagesTimeline = memo(function MessagesTimeline({
       )}
 
       {row.kind === "working" && (
-        <div
-          className="flex items-center gap-1 pt-1 pl-1 text-muted-foreground/70 font-system-ui"
-          style={{ fontSize: `${appTypographyScale.uiSmPx}px` }}
-        >
-          <span>
-            {row.createdAt ? (
-              <>
-                Working for{" "}
-                {nowIso ? (
-                  (formatWorkingTimer(row.createdAt, nowIso) ?? "0s")
-                ) : (
-                  <WorkingTimer createdAt={row.createdAt} />
-                )}
-              </>
-            ) : (
-              "Working..."
-            )}
-          </span>
-          <span className="inline-flex items-center gap-1">
-            <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse" />
-            <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:200ms]" />
-            <span className="h-1 w-1 rounded-full bg-muted-foreground/30 animate-pulse [animation-delay:400ms]" />
-          </span>
-        </div>
+        <LiveTurnStatusRow
+          createdAt={row.createdAt}
+          activeWorkEntries={row.activeWorkEntries}
+          nowIso={nowIso}
+          fontSizePx={appTypographyScale.uiSmPx}
+        />
       )}
     </div>
   );
@@ -1024,6 +1006,149 @@ function LiveMessageMeta({
       )}
     </>
   );
+}
+
+function LiveTurnStatusRow({
+  createdAt,
+  activeWorkEntries,
+  nowIso,
+  fontSizePx,
+}: {
+  createdAt: string | null;
+  activeWorkEntries: ReadonlyArray<TimelineWorkEntry>;
+  nowIso: string | undefined;
+  fontSizePx: number;
+}) {
+  const status = deriveLiveTurnStatus(activeWorkEntries);
+  const elapsed = createdAt
+    ? nowIso
+      ? (formatWorkingTimer(createdAt, nowIso) ?? "0s")
+      : null
+    : null;
+  const visibleActivityEntries = activeWorkEntries.slice(-3);
+
+  return (
+    <div
+      className="live-turn-status-row ml-1 mt-1 flex max-w-full flex-col gap-1.5 rounded-md border border-border/35 bg-background/45 px-2.5 py-1.5 font-system-ui text-muted-foreground/72 shadow-[inset_0_1px_0_rgba(255,255,255,0.03)]"
+      style={{ fontSize: `${fontSizePx}px` }}
+      role="status"
+      aria-live="polite"
+      aria-busy="true"
+    >
+      <div className="flex w-full min-w-0 items-center gap-2">
+        <span className="live-turn-status-row__pulse" aria-hidden="true">
+          <span />
+        </span>
+        <span className="min-w-0 flex-1 truncate">
+          <span className="font-medium text-foreground/78">{status.label}</span>
+          {status.detail ? (
+            <span className="text-muted-foreground/42"> {status.detail}</span>
+          ) : null}
+        </span>
+        {createdAt ? (
+          <span className="shrink-0 tabular-nums text-muted-foreground/38">
+            {elapsed ?? <WorkingTimer createdAt={createdAt} />}
+          </span>
+        ) : null}
+      </div>
+      {visibleActivityEntries.length > 0 ? (
+        <div className="live-turn-activity-stack w-full min-w-0 space-y-1">
+          {visibleActivityEntries.map((workEntry) => (
+            <LiveTurnActivityRow
+              key={`live-activity:${workEntry.id}`}
+              workEntry={workEntry}
+              fontSizePx={Math.max(11, fontSizePx - 1)}
+            />
+          ))}
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function LiveTurnActivityRow({
+  workEntry,
+  fontSizePx,
+}: {
+  workEntry: TimelineWorkEntry;
+  fontSizePx: number;
+}) {
+  const EntryIcon = workEntryIcon(workEntry);
+  const heading = toolWorkEntryHeading(workEntry);
+  const preview = workEntryPreview(workEntry);
+  const duration =
+    workEntry.durationMs !== undefined ? formatDuration(workEntry.durationMs) : null;
+
+  return (
+    <div
+      className="live-turn-activity-row flex min-w-0 items-center gap-1.5 rounded-[6px] border border-border/25 bg-background/42 px-2 py-1 text-muted-foreground/56"
+      style={{ fontSize: `${fontSizePx}px` }}
+      title={workEntry.command ?? preview ?? heading}
+    >
+      <span className="flex size-3.5 shrink-0 items-center justify-center text-muted-foreground/42">
+        <EntryIcon className="size-3" />
+      </span>
+      <span className="min-w-0 flex-1 truncate">
+        <span className="text-muted-foreground/68">{heading}</span>
+        {preview ? <span className="text-muted-foreground/35"> {preview}</span> : null}
+        {duration ? <span className="text-muted-foreground/30"> · {duration}</span> : null}
+      </span>
+      {workEntry.status ? (
+        <span
+          className={cn(
+            "live-turn-activity-row__status shrink-0 rounded-full border px-1.5 py-0.5 text-[9px] font-medium uppercase tracking-[0.08em]",
+            workEntry.status === "failed"
+              ? "border-red-400/25 bg-red-500/10 text-red-300/90"
+              : workEntry.status === "running"
+                ? "border-sky-300/25 bg-sky-400/10 text-sky-200/90"
+                : "border-emerald-300/20 bg-emerald-400/10 text-emerald-200/85",
+          )}
+          data-live-work-status={workEntry.status}
+        >
+          {workEntry.status}
+        </span>
+      ) : null}
+    </div>
+  );
+}
+
+function deriveLiveTurnStatus(activeWorkEntries: ReadonlyArray<TimelineWorkEntry>): {
+  label: string;
+  detail: string | null;
+} {
+  const latestRunning =
+    [...activeWorkEntries].reverse().find((entry) => entry.status === "running") ?? null;
+  const latestEntry = latestRunning ?? activeWorkEntries.at(-1) ?? null;
+
+  if (!latestEntry) {
+    return { label: "Starting turn", detail: "Preparing the workspace" };
+  }
+
+  const heading = toolWorkEntryHeading(latestEntry);
+  const preview = workEntryPreview(latestEntry);
+
+  if (latestEntry.status === "running") {
+    return { label: withTrailingEllipsis(heading), detail: preview };
+  }
+
+  if (latestEntry.status === "failed") {
+    return { label: "Checking failure", detail: preview ?? heading };
+  }
+
+  if (isFileChangeWorkEntry(latestEntry)) {
+    return { label: "Building diff", detail: preview ?? heading };
+  }
+
+  if (latestEntry.status === "completed") {
+    return { label: "Finalizing response", detail: preview ?? heading };
+  }
+
+  return { label: heading, detail: preview };
+}
+
+function withTrailingEllipsis(value: string): string {
+  const trimmed = value.trimEnd();
+  return trimmed.endsWith("...") || trimmed.endsWith("…") ? trimmed : `${trimmed}...`;
 }
 
 function formatWorkingTimer(startIso: string, endIso: string): string | null {

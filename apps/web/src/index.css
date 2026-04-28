@@ -361,6 +361,103 @@ input {
   display: none;
 }
 
+.app-loading-dots {
+  display: inline-block;
+  width: 1.5ch;
+  text-align: left;
+}
+
+.app-loading-dots::after {
+  content: "";
+  animation: app-loading-ellipsis 1.2s steps(1) infinite;
+}
+
+@keyframes app-loading-ellipsis {
+  0%,
+  20% {
+    content: "";
+  }
+  40% {
+    content: ".";
+  }
+  60% {
+    content: "..";
+  }
+  80%,
+  100% {
+    content: "...";
+  }
+}
+
+.live-turn-status-row {
+  animation: live-turn-row-enter 160ms ease-out;
+}
+
+.live-turn-status-row__pulse {
+  position: relative;
+  display: inline-flex;
+  width: 0.625rem;
+  height: 0.625rem;
+  flex: 0 0 auto;
+  align-items: center;
+  justify-content: center;
+}
+
+.live-turn-status-row__pulse::before {
+  position: absolute;
+  inset: 0;
+  border-radius: 9999px;
+  background: rgb(56 189 248 / 0.18);
+  content: "";
+  animation: live-turn-pulse 1.45s ease-out infinite;
+}
+
+.live-turn-status-row__pulse > span {
+  width: 0.375rem;
+  height: 0.375rem;
+  border-radius: 9999px;
+  background: rgb(125 211 252 / 0.95);
+  box-shadow: 0 0 0 1px rgb(14 165 233 / 0.2);
+}
+
+@keyframes live-turn-pulse {
+  0% {
+    opacity: 0.85;
+    transform: scale(0.7);
+  }
+  70% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(2.2);
+  }
+}
+
+@keyframes live-turn-row-enter {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .app-loading-dots::after {
+    content: "...";
+    animation: none;
+  }
+
+  .live-turn-status-row,
+  .live-turn-status-row__pulse::before {
+    animation: none;
+  }
+}
+
 /* Terminal drawer scrollbar parity with chat */
 .thread-terminal-drawer .xterm .xterm-scrollable-element > .scrollbar.vertical {
   width: 6px !important;

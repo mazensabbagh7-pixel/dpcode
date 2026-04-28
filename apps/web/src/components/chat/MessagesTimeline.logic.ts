@@ -44,7 +44,12 @@ export type MessagesTimelineRow =
       createdAt: string;
       proposedPlan: ProposedPlan;
     }
-  | { kind: "working"; id: string; createdAt: string | null };
+  | {
+      kind: "working";
+      id: string;
+      createdAt: string | null;
+      activeWorkEntries: WorkLogEntry[];
+    };
 
 export interface StableMessagesTimelineRowsState {
   byId: Map<string, MessagesTimelineRow>;
@@ -161,6 +166,9 @@ export function deriveMessagesTimelineRows(input: {
   );
   const durationStartByMessageId = computeMessageDurationStart(timelineMessages);
   const terminalAssistantMessageIds = deriveTerminalAssistantMessageIds(timelineMessages);
+  const activeWorkEntries = input.timelineEntries.flatMap((entry) =>
+    entry.kind === "work" ? [entry.entry] : [],
+  );
   let pendingWorkGroup: Extract<MessagesTimelineRow, { kind: "work" }> | null = null;
 
   const groupedEntriesEqual = (
@@ -284,6 +292,7 @@ export function deriveMessagesTimelineRows(input: {
       kind: "working",
       id: "working-indicator-row",
       createdAt: input.activeTurnStartedAt,
+      activeWorkEntries: activeWorkEntries.slice(-3),
     });
   }
 
@@ -326,7 +335,10 @@ function isRowUnchanged(a: MessagesTimelineRow, b: MessagesTimelineRow): boolean
 
   switch (a.kind) {
     case "working":
-      return a.createdAt === (b as typeof a).createdAt;
+      return (
+        a.createdAt === (b as typeof a).createdAt &&
+        shallowEqualEntryArray(a.activeWorkEntries, (b as typeof a).activeWorkEntries)
+      );
 
     case "proposed-plan":
       return a.proposedPlan === (b as typeof a).proposedPlan;

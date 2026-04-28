@@ -41,7 +41,17 @@ export function SplashScreen({
               </button>
             ) : null}
           </div>
-        ) : null}
+        ) : (
+          <div
+            className="flex items-center gap-1 text-sm font-medium text-muted-foreground/70"
+            role="status"
+            aria-live="polite"
+            aria-busy="true"
+          >
+            <span>Opening {APP_COMPACT_NAME}</span>
+            <span className="app-loading-dots" aria-hidden="true" />
+          </div>
+        )}
       </div>
     </div>
   );
