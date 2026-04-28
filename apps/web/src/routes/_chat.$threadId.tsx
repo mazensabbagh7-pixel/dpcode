@@ -1234,16 +1234,6 @@ function SplitChatSurface(props: { splitViewId: SplitViewId; routeThreadId: Thre
     [activeSplitView],
   );
 
-  const selectableThreads = useMemo(
-    () =>
-      threads.toSorted(
-        (left, right) =>
-          Date.parse(right.updatedAt ?? right.createdAt) -
-          Date.parse(left.updatedAt ?? left.createdAt),
-      ),
-    [threads],
-  );
-
   if (!activeSplitView) {
     return <ChatMountSkeleton />;
   }
