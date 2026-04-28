@@ -1417,7 +1417,7 @@ export default function Sidebar() {
   );
 
   const openExistingProjectLocally = useCallback(
-    (projectId: ProjectId) => {
+    async (projectId: ProjectId) => {
       const hasProjectThread = sidebarThreads.some((thread) => thread.projectId === projectId);
       if (hasProjectThread) {
         focusMostRecentThreadForProject(projectId);
@@ -1425,8 +1425,17 @@ export default function Sidebar() {
       }
 
       setProjectExpanded(projectId, true);
+      await handleNewThread(projectId, {
+        envMode: appSettings.defaultThreadEnvMode,
+      }).catch(() => undefined);
     },
-    [focusMostRecentThreadForProject, setProjectExpanded, sidebarThreads],
+    [
+      appSettings.defaultThreadEnvMode,
+      focusMostRecentThreadForProject,
+      handleNewThread,
+      setProjectExpanded,
+      sidebarThreads,
+    ],
   );
 
   const openOrCreateProjectThreadFromSnapshot = useCallback(
@@ -1502,9 +1511,18 @@ export default function Sidebar() {
       }
 
       setProjectExpanded(projectId, true);
+      await handleNewThread(projectId, {
+        envMode: appSettings.defaultThreadEnvMode,
+      }).catch(() => undefined);
       return true;
     },
-    [appSettings.sidebarThreadSortOrder, navigate, setProjectExpanded],
+    [
+      appSettings.defaultThreadEnvMode,
+      appSettings.sidebarThreadSortOrder,
+      handleNewThread,
+      navigate,
+      setProjectExpanded,
+    ],
   );
 
   // Poll the server read model briefly after project.create so we only recover from fresh state.
@@ -1769,8 +1787,8 @@ export default function Sidebar() {
 
       const existing = findWorkspaceRootMatch(projects, cwd, (project) => project.cwd);
       if (existing) {
+        await openExistingProjectLocally(existing.id);
         finishAddingProject();
-        openExistingProjectLocally(existing.id);
         return;
       }
 
