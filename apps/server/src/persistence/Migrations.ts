@@ -47,6 +47,7 @@ import Migration0031 from "./Migrations/031_ProjectionThreadsCreateBranchFlowCom
 import Migration0032 from "./Migrations/032_AgentDefinitions.ts";
 import Migration0033 from "./Migrations/033_AgentRuns.ts";
 import Migration0034 from "./Migrations/034_AgentDefinitionsProjectId.ts";
+import Migration0035 from "./Migrations/035_NormalizeNonRunningSessionTurns.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -93,6 +94,7 @@ export const migrationEntries = [
   [32, "AgentDefinitions", Migration0032],
   [33, "AgentRuns", Migration0033],
   [34, "AgentDefinitionsProjectId", Migration0034],
+  [35, "NormalizeNonRunningSessionTurns", Migration0035],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

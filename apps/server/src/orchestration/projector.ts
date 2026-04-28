@@ -535,30 +535,32 @@ export function projectEvent(
           event.type,
           "session",
         );
+        const normalizedSession: OrchestrationSession =
+          session.status === "ready" ? { ...session, activeTurnId: null } : session;
 
         return {
           ...nextBase,
           threads: updateThread(nextBase.threads, payload.threadId, {
-            session,
+            session: normalizedSession,
             latestTurn:
-              session.status === "running" && session.activeTurnId !== null
-                ? thread.latestTurn?.turnId === session.activeTurnId &&
+              normalizedSession.status === "running" && normalizedSession.activeTurnId !== null
+                ? thread.latestTurn?.turnId === normalizedSession.activeTurnId &&
                   isTerminalLatestTurn(thread.latestTurn)
                   ? thread.latestTurn
                   : {
-                      turnId: session.activeTurnId,
+                      turnId: normalizedSession.activeTurnId,
                       state: "running",
                       requestedAt:
-                        thread.latestTurn?.turnId === session.activeTurnId
+                        thread.latestTurn?.turnId === normalizedSession.activeTurnId
                           ? thread.latestTurn.requestedAt
-                          : session.updatedAt,
+                          : normalizedSession.updatedAt,
                       startedAt:
-                        thread.latestTurn?.turnId === session.activeTurnId
-                          ? (thread.latestTurn.startedAt ?? session.updatedAt)
-                          : session.updatedAt,
+                        thread.latestTurn?.turnId === normalizedSession.activeTurnId
+                          ? (thread.latestTurn.startedAt ?? normalizedSession.updatedAt)
+                          : normalizedSession.updatedAt,
                       completedAt: null,
                       assistantMessageId:
-                        thread.latestTurn?.turnId === session.activeTurnId
+                        thread.latestTurn?.turnId === normalizedSession.activeTurnId
                           ? thread.latestTurn.assistantMessageId
                           : null,
                     }

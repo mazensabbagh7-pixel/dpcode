@@ -1327,7 +1327,7 @@ describe("ProviderCommandReactor", () => {
     });
   });
 
-  it("queues a follow-up turn when an active turn id survives a ready session blip", async () => {
+  it("does not trap follow-up turns behind a stale active turn id on a ready session", async () => {
     const harness = await createHarness();
     const now = new Date().toISOString();
 
@@ -1369,21 +1369,6 @@ describe("ProviderCommandReactor", () => {
     );
 
     await harness.drain();
-    expect(harness.sendTurn).not.toHaveBeenCalled();
-
-    await harness.emitRuntimeEvent({
-      type: "turn.completed",
-      eventId: asEventId("evt-turn-completed-ready-active-queue"),
-      provider: "codex",
-      threadId: ThreadId.makeUnsafe("thread-1"),
-      createdAt: new Date().toISOString(),
-      turnId: asTurnId("turn-ready-active"),
-      payload: {
-        state: "completed",
-      },
-      providerRefs: {},
-    } as ProviderRuntimeEvent);
-
     await waitFor(() => harness.sendTurn.mock.calls.length === 1);
     expect(harness.sendTurn.mock.calls[0]?.[0]).toMatchObject({
       threadId: ThreadId.makeUnsafe("thread-1"),

@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.42",
+    date: "Apr 27",
+    features: [
+      {
+        id: "chat-queue-stale-active-turn-hotfix",
+        title: "Chats recover from stale running state",
+        description:
+          "Mazen Code now clears stale ready-session turn markers after restart so Codex and Claudio chats do not trap new messages behind an old completed turn.",
+      },
+    ],
+  },
+  {
     version: "0.0.41",
     date: "Apr 27",
     features: [

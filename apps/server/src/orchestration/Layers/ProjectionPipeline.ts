@@ -1115,12 +1115,14 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
       if (event.type !== "thread.session-set") {
         return;
       }
+      const activeTurnId =
+        event.payload.session.status === "ready" ? null : event.payload.session.activeTurnId;
       yield* projectionThreadSessionRepository.upsert({
         threadId: event.payload.threadId,
         status: event.payload.session.status,
         providerName: event.payload.session.providerName,
         runtimeMode: event.payload.session.runtimeMode,
-        activeTurnId: event.payload.session.activeTurnId,
+        activeTurnId,
         lastError: event.payload.session.lastError,
         updatedAt: event.payload.session.updatedAt,
       });
@@ -1144,20 +1146,20 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
         }
 
         case "thread.session-set": {
-          const turnId = event.payload.session.activeTurnId;
-          if (event.payload.session.status !== "running" || turnId === null) {
+          const sessionStatus = event.payload.session.status;
+          const sessionActiveTurnId = event.payload.session.activeTurnId;
+          if (sessionStatus !== "running" || sessionActiveTurnId === null) {
             if (
-              event.payload.session.activeTurnId === null &&
-              (event.payload.session.status === "ready" ||
-                event.payload.session.status === "error" ||
-                event.payload.session.status === "interrupted" ||
-                event.payload.session.status === "stopped")
+              sessionStatus === "ready" ||
+              sessionStatus === "error" ||
+              sessionStatus === "interrupted" ||
+              sessionStatus === "stopped"
             ) {
               // Close the newest still-open turn when the runtime reports that
               // the thread is no longer running. Assistant message completion
               // can happen multiple times inside one turn, so session status is
               // the safer lifecycle boundary for `completedAt`.
-              const turnToFinalize = (yield* projectionTurnRepository.listByThreadId({
+              const openTurns = (yield* projectionTurnRepository.listByThreadId({
                 threadId: event.payload.threadId,
               }))
                 .filter(
@@ -1171,16 +1173,17 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
                   (left, right) =>
                     right.requestedAt.localeCompare(left.requestedAt) ||
                     right.turnId.localeCompare(left.turnId),
-                )
-                .at(0);
+                );
+              const activeTurnToFinalize =
+                sessionActiveTurnId !== null
+                  ? openTurns.find((row) => String(row.turnId) === String(sessionActiveTurnId))
+                  : null;
+              const turnToFinalize = activeTurnToFinalize ?? openTurns.at(0);
 
               if (turnToFinalize) {
                 yield* projectionTurnRepository.upsertByTurnId({
                   ...turnToFinalize,
-                  state: finalizeTurnStateFromSessionStatus(
-                    event.payload.session.status,
-                    turnToFinalize.state,
-                  ),
+                  state: finalizeTurnStateFromSessionStatus(sessionStatus, turnToFinalize.state),
                   startedAt: turnToFinalize.startedAt ?? event.payload.session.updatedAt,
                   requestedAt: turnToFinalize.requestedAt ?? event.payload.session.updatedAt,
                   completedAt: event.payload.session.updatedAt,
@@ -1190,6 +1193,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
             return;
           }
 
+          const turnId = sessionActiveTurnId;
           const existingTurn = yield* projectionTurnRepository.getByTurnId({
             threadId: event.payload.threadId,
             turnId,
