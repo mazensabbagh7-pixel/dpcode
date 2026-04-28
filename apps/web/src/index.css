@@ -720,6 +720,82 @@ diffs-container {
   background: var(--composer-surface);
 }
 
+.mux-chat-composer-frame {
+  background:
+    linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--color-border) 82%, transparent),
+      color-mix(in srgb, var(--color-border-light) 45%, transparent)
+    ),
+    color-mix(in srgb, var(--color-background-surface) 96%, var(--color-text-foreground) 4%);
+  box-shadow:
+    0 18px 44px color-mix(in srgb, black 24%, transparent),
+    0 1px 0 color-mix(in srgb, white 5%, transparent) inset;
+}
+
+.mux-chat-composer-surface {
+  background:
+    radial-gradient(
+      circle at 14% 0%,
+      color-mix(in srgb, var(--color-background-control) 34%, transparent),
+      transparent 48%
+    ),
+    color-mix(in srgb, var(--color-background-surface-under) 90%, black 10%);
+  border-color: color-mix(in srgb, var(--color-border) 62%, transparent);
+  box-shadow:
+    0 1px 0 color-mix(in srgb, white 6%, transparent) inset,
+    0 -1px 0 color-mix(in srgb, black 14%, transparent) inset;
+}
+
+.mux-chat-composer-surface:focus-within {
+  border-color: color-mix(in srgb, var(--color-border-focus) 55%, var(--color-border));
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--color-border-focus) 24%, transparent),
+    0 1px 0 color-mix(in srgb, white 7%, transparent) inset,
+    0 -1px 0 color-mix(in srgb, black 16%, transparent) inset;
+}
+
+.mux-chat-composer-footer {
+  border-top: 1px solid color-mix(in srgb, var(--color-border) 36%, transparent);
+  padding-top: 0.45rem;
+}
+
+.mux-chat-composer-footer [data-chat-composer-actions="right"] button[type="submit"],
+.mux-chat-composer-footer
+  [data-chat-composer-actions="right"]
+  button[aria-label="Stop generation"] {
+  box-shadow:
+    0 10px 22px color-mix(in srgb, black 28%, transparent),
+    0 1px 0 color-mix(in srgb, white 18%, transparent) inset;
+}
+
+.mux-chat-composer-footer > div:first-child button {
+  border: 1px solid color-mix(in srgb, var(--color-border) 34%, transparent);
+  background: color-mix(in srgb, var(--color-background-elevated-secondary) 76%, transparent);
+}
+
+.mux-chat-composer-footer > div:first-child button:hover {
+  border-color: color-mix(in srgb, var(--color-border) 58%, transparent);
+  background: color-mix(in srgb, var(--color-background-button-secondary-hover) 82%, transparent);
+}
+
+.mux-chat-statusbar {
+  padding-top: 0.45rem;
+  color: color-mix(in srgb, var(--color-text-foreground-secondary) 86%, transparent);
+}
+
+.mux-chat-statusbar button,
+.mux-chat-statusbar [data-slot="popover-trigger"] {
+  border: 1px solid transparent;
+  border-radius: 0.55rem;
+}
+
+.mux-chat-statusbar button:hover,
+.mux-chat-statusbar [data-slot="popover-trigger"]:hover {
+  border-color: color-mix(in srgb, var(--color-border) 34%, transparent);
+  background: color-mix(in srgb, var(--color-background-elevated-secondary) 72%, transparent);
+}
+
 @keyframes ultrathink-rainbow {
   0% {
     background-position: 0% 50%;

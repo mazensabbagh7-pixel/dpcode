@@ -6776,7 +6776,7 @@ export default function ChatView({
         ) : null}
         <div
           className={cn(
-            "group rounded-3xl p-px transition-colors duration-200",
+            "mux-chat-composer-frame group rounded-[1.35rem] p-px transition-colors duration-200",
             composerProviderState.composerFrameClassName,
           )}
           onDragEnter={onComposerDragEnter}
@@ -6786,7 +6786,7 @@ export default function ChatView({
         >
           <div
             className={cn(
-              "chat-composer-surface rounded-2xl border border-[color:var(--color-border-light)] transition-colors duration-200",
+              "mux-chat-composer-surface chat-composer-surface rounded-[1.25rem] border border-[color:var(--color-border-light)] transition-colors duration-200",
               isDragOverComposer ? "!bg-[var(--color-background-control)]" : "",
               composerProviderState.composerSurfaceClassName,
             )}
@@ -6817,7 +6817,7 @@ export default function ChatView({
                 />
               </div>
             ) : null}
-            <div className={cn("relative px-3.5 pb-1 pt-3")}>
+            <div className={cn("relative px-3.5 pb-1.5 pt-3.5")}>
               {composerMenuOpen && !isComposerApprovalState && (
                 <div className="absolute inset-x-0 bottom-full z-20 mb-2 px-1">
                   {isLocalFolderBrowserOpen ? (
@@ -6910,7 +6910,7 @@ export default function ChatView({
               <div
                 data-chat-composer-footer="true"
                 className={cn(
-                  "flex items-end justify-between px-2.5 pb-2",
+                  "mux-chat-composer-footer flex items-end justify-between px-2.5 pb-2",
                   isComposerFooterCompact ? "gap-1.5" : "flex-wrap gap-1.5 sm:flex-nowrap sm:gap-0",
                 )}
               >
@@ -7195,7 +7195,7 @@ export default function ChatView({
         </div>
       </form>
       {isEmptyChatLanding ? (
-        <div className="mt-2 flex w-full items-center justify-between gap-3 px-3">
+        <div className="mux-chat-statusbar mt-2 flex w-full items-center justify-between gap-3 px-3">
           <ProjectPicker
             align="start"
             side="top"
@@ -7341,9 +7341,9 @@ export default function ChatView({
                   </div>
                   {composerSection}
                   {isGitRepo ? (
-                    <BranchToolbar {...branchToolbarProps} />
+                    <BranchToolbar {...branchToolbarProps} className="mux-chat-statusbar" />
                   ) : !isEmptyChatLanding ? (
-                    <div className="mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
+                    <div className="mux-chat-statusbar mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
                       <RuntimeUsageControls {...runtimeUsageControlsProps} />
                     </div>
                   ) : null}
@@ -7484,7 +7484,7 @@ export default function ChatView({
                     ) : null}
                     <div
                       className={cn(
-                        "group rounded-3xl p-px transition-colors duration-200",
+                        "mux-chat-composer-frame group rounded-[1.35rem] p-px transition-colors duration-200",
                         composerProviderState.composerFrameClassName,
                       )}
                       onDragEnter={onComposerDragEnter}
@@ -7494,7 +7494,7 @@ export default function ChatView({
                     >
                       <div
                         className={cn(
-                          "chat-composer-surface rounded-2xl border border-[color:var(--color-border-light)] transition-colors duration-200",
+                          "mux-chat-composer-surface chat-composer-surface rounded-[1.25rem] border border-[color:var(--color-border-light)] transition-colors duration-200",
                           isDragOverComposer ? "!bg-[var(--color-background-control)]" : "",
                           composerProviderState.composerSurfaceClassName,
                         )}
@@ -7525,7 +7525,7 @@ export default function ChatView({
                             />
                           </div>
                         ) : null}
-                        <div className={cn("relative px-3.5 pb-1 pt-3")}>
+                        <div className={cn("relative px-3.5 pb-1.5 pt-3.5")}>
                           {composerMenuOpen && !isComposerApprovalState && (
                             <div className="absolute inset-x-0 bottom-full z-20 mb-2 px-1">
                               {isLocalFolderBrowserOpen ? (
@@ -7625,7 +7625,7 @@ export default function ChatView({
                           <div
                             data-chat-composer-footer="true"
                             className={cn(
-                              "flex items-end justify-between px-2.5 pb-2",
+                              "mux-chat-composer-footer flex items-end justify-between px-2.5 pb-2",
                               isComposerFooterCompact
                                 ? "gap-1.5"
                                 : "flex-wrap gap-1.5 sm:flex-nowrap sm:gap-0",
@@ -7928,9 +7928,9 @@ export default function ChatView({
                   </form>
                 </div>
                 {isGitRepo ? (
-                  <BranchToolbar {...branchToolbarProps} />
+                  <BranchToolbar {...branchToolbarProps} className="mux-chat-statusbar" />
                 ) : (
-                  <div className="mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
+                  <div className="mux-chat-statusbar mx-auto flex w-full max-w-3xl items-center justify-end px-3 pb-3 pt-1">
                     <RuntimeUsageControls {...runtimeUsageControlsProps} />
                   </div>
                 )}
