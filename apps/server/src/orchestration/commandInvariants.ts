@@ -36,6 +36,7 @@ export function findProjectById(
 export function findActiveProjectByWorkspaceRoot(
   readModel: OrchestrationReadModel,
   workspaceRoot: string,
+  options: { readonly kind?: OrchestrationProject["kind"] } = {},
 ): OrchestrationProject | undefined {
   const normalizedWorkspaceRoot = normalizeWorkspaceRootForComparison(workspaceRoot, {
     platform: process.platform,
@@ -43,7 +44,7 @@ export function findActiveProjectByWorkspaceRoot(
   return readModel.projects.find(
     (project) =>
       project.deletedAt === null &&
-      project.kind === "project" &&
+      (options.kind === undefined || project.kind === options.kind) &&
       normalizeWorkspaceRootForComparison(project.workspaceRoot, {
         platform: process.platform,
       }) === normalizedWorkspaceRoot,
@@ -94,9 +95,14 @@ export function requireProjectWorkspaceRootAvailable(input: {
   readonly readModel: OrchestrationReadModel;
   readonly command: OrchestrationCommand;
   readonly workspaceRoot: string;
+  readonly kind?: OrchestrationProject["kind"];
   readonly excludeProjectId?: ProjectId;
 }): Effect.Effect<void, OrchestrationCommandInvariantError> {
-  const existingProject = findActiveProjectByWorkspaceRoot(input.readModel, input.workspaceRoot);
+  const existingProject = findActiveProjectByWorkspaceRoot(
+    input.readModel,
+    input.workspaceRoot,
+    input.kind === undefined ? {} : { kind: input.kind },
+  );
   if (!existingProject || existingProject.id === input.excludeProjectId) {
     return Effect.void;
   }

@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.44",
+    date: "Apr 27",
+    features: [
+      {
+        id: "chat-history-workload-repair",
+        title: "Chat history and workload cleanup",
+        description:
+          "MazenCode now canonicalizes duplicate Home chat containers and reconciles stale agent runs so chat history and workload state do not stay stuck on old rows.",
+      },
+    ],
+  },
+  {
     version: "0.0.43",
     date: "Apr 27",
     features: [

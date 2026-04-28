@@ -139,13 +139,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         projectId: command.projectId,
       });
-      if ((command.kind ?? "project") === "project") {
-        yield* requireProjectWorkspaceRootAvailable({
-          readModel,
-          command,
-          workspaceRoot: command.workspaceRoot,
-        });
-      }
+      yield* requireProjectWorkspaceRootAvailable({
+        readModel,
+        command,
+        workspaceRoot: command.workspaceRoot,
+        kind: command.kind ?? "project",
+      });
 
       return {
         ...withEventBase({
@@ -174,11 +173,12 @@ export const decideOrchestrationCommand = Effect.fn("decideOrchestrationCommand"
         command,
         projectId: command.projectId,
       });
-      if (command.workspaceRoot !== undefined && command.kind !== "chat") {
+      if (command.workspaceRoot !== undefined) {
         yield* requireProjectWorkspaceRootAvailable({
           readModel,
           command,
           workspaceRoot: command.workspaceRoot,
+          ...(command.kind !== undefined ? { kind: command.kind } : {}),
           excludeProjectId: command.projectId,
         });
       }

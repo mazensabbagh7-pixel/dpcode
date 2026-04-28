@@ -48,6 +48,7 @@ import Migration0032 from "./Migrations/032_AgentDefinitions.ts";
 import Migration0033 from "./Migrations/033_AgentRuns.ts";
 import Migration0034 from "./Migrations/034_AgentDefinitionsProjectId.ts";
 import Migration0035 from "./Migrations/035_NormalizeNonRunningSessionTurns.ts";
+import Migration0036 from "./Migrations/036_RepairChatHistoryAndAgentRuns.ts";
 
 /**
  * Migration loader with all migrations defined inline.
@@ -95,6 +96,7 @@ export const migrationEntries = [
   [33, "AgentRuns", Migration0033],
   [34, "AgentDefinitionsProjectId", Migration0034],
   [35, "NormalizeNonRunningSessionTurns", Migration0035],
+  [36, "RepairChatHistoryAndAgentRuns", Migration0036],
 ] as const;
 
 export const makeMigrationLoader = (throughId?: number) =>

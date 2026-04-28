@@ -219,6 +219,59 @@ function toProjectedCheckpoint(row: ProjectionCheckpointDbRow): OrchestrationChe
   };
 }
 
+function buildCanonicalChatProjectMap(
+  projectRows: ReadonlyArray<ProjectionProjectDbRow>,
+): Map<string, string> {
+  const canonicalProjectIdByWorkspaceRoot = new Map<string, string>();
+  const duplicateToCanonicalProjectId = new Map<string, string>();
+
+  for (const project of projectRows) {
+    if (project.deletedAt !== null || project.kind !== "chat") {
+      continue;
+    }
+
+    const canonicalProjectId = canonicalProjectIdByWorkspaceRoot.get(project.workspaceRoot);
+    if (canonicalProjectId === undefined) {
+      canonicalProjectIdByWorkspaceRoot.set(project.workspaceRoot, project.projectId);
+      continue;
+    }
+
+    duplicateToCanonicalProjectId.set(project.projectId, canonicalProjectId);
+  }
+
+  return duplicateToCanonicalProjectId;
+}
+
+function excludeDuplicateActiveChatProjects(
+  projectRows: ReadonlyArray<ProjectionProjectDbRow>,
+  duplicateToCanonicalProjectId: ReadonlyMap<string, string>,
+): ReadonlyArray<ProjectionProjectDbRow> {
+  if (duplicateToCanonicalProjectId.size === 0) {
+    return projectRows;
+  }
+  return projectRows.filter(
+    (project) =>
+      project.deletedAt !== null ||
+      project.kind !== "chat" ||
+      !duplicateToCanonicalProjectId.has(project.projectId),
+  );
+}
+
+function canonicalizeDuplicateChatThreadRows(
+  threadRows: ReadonlyArray<ProjectionThreadDbRow>,
+  duplicateToCanonicalProjectId: ReadonlyMap<string, string>,
+): ReadonlyArray<ProjectionThreadDbRow> {
+  if (duplicateToCanonicalProjectId.size === 0) {
+    return threadRows;
+  }
+  return threadRows.map((thread) => {
+    const canonicalProjectId = duplicateToCanonicalProjectId.get(thread.projectId);
+    return canonicalProjectId === undefined
+      ? thread
+      : { ...thread, projectId: ProjectId.makeUnsafe(canonicalProjectId) };
+  });
+}
+
 function toProjectedLatestTurn(row: ProjectionLatestTurnDbRow): OrchestrationLatestTurn {
   return {
     turnId: row.turnId,
@@ -267,53 +320,6 @@ function toProjectedProjectShell(row: ProjectionProjectDbRow): OrchestrationProj
     scripts: row.scripts,
     createdAt: row.createdAt,
     updatedAt: row.updatedAt,
-  };
-}
-
-function toProjectedThreadShell(input: {
-  readonly threadRow: ProjectionThreadDbRow;
-  readonly latestTurn: OrchestrationLatestTurn | null;
-  readonly messages: ReadonlyArray<Pick<OrchestrationMessage, "role" | "createdAt">>;
-  readonly proposedPlans: ReadonlyArray<
-    Pick<OrchestrationProposedPlan, "id" | "turnId" | "updatedAt" | "implementedAt">
-  >;
-  readonly activities: ReadonlyArray<
-    Pick<OrchestrationThreadActivity, "createdAt" | "id" | "kind" | "payload" | "sequence">
-  >;
-  readonly session: OrchestrationSession | null;
-}): OrchestrationThreadShell {
-  const { threadRow } = input;
-  const summary = deriveThreadSummaryMetadata(input);
-  return {
-    id: threadRow.threadId,
-    projectId: threadRow.projectId,
-    title: threadRow.title,
-    modelSelection: threadRow.modelSelection,
-    runtimeMode: threadRow.runtimeMode,
-    interactionMode: threadRow.interactionMode,
-    envMode: threadRow.envMode,
-    branch: threadRow.branch,
-    worktreePath: threadRow.worktreePath,
-    associatedWorktreePath: threadRow.associatedWorktreePath,
-    associatedWorktreeBranch: threadRow.associatedWorktreeBranch,
-    associatedWorktreeRef: threadRow.associatedWorktreeRef,
-    createBranchFlowCompleted: threadRow.createBranchFlowCompleted > 0,
-    parentThreadId: threadRow.parentThreadId ?? null,
-    subagentAgentId: threadRow.subagentAgentId ?? null,
-    subagentNickname: threadRow.subagentNickname ?? null,
-    subagentRole: threadRow.subagentRole ?? null,
-    forkSourceThreadId: threadRow.forkSourceThreadId ?? null,
-    lastKnownPr: threadRow.lastKnownPr,
-    latestTurn: input.latestTurn,
-    latestUserMessageAt: summary.latestUserMessageAt,
-    hasPendingApprovals: summary.hasPendingApprovals,
-    hasPendingUserInput: summary.hasPendingUserInput,
-    hasActionableProposedPlan: summary.hasActionableProposedPlan,
-    createdAt: threadRow.createdAt,
-    updatedAt: threadRow.updatedAt,
-    archivedAt: threadRow.archivedAt ?? null,
-    handoff: threadRow.handoff,
-    session: input.session,
   };
 }
 
@@ -1065,7 +1071,17 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionsByThread.set(row.threadId, toProjectedSession(row));
           }
 
-          const projects: ReadonlyArray<OrchestrationProject> = projectRows.map((row) => ({
+          const duplicateToCanonicalProjectId = buildCanonicalChatProjectMap(projectRows);
+          const canonicalProjectRows = excludeDuplicateActiveChatProjects(
+            projectRows,
+            duplicateToCanonicalProjectId,
+          );
+          const canonicalThreadRows = canonicalizeDuplicateChatThreadRows(
+            threadRows,
+            duplicateToCanonicalProjectId,
+          );
+
+          const projects: ReadonlyArray<OrchestrationProject> = canonicalProjectRows.map((row) => ({
             id: row.projectId,
             kind: row.kind,
             title: row.title,
@@ -1077,7 +1093,7 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             deletedAt: row.deletedAt,
           }));
 
-          const threads: ReadonlyArray<OrchestrationThread> = threadRows.map((row) =>
+          const threads: ReadonlyArray<OrchestrationThread> = canonicalThreadRows.map((row) =>
             toProjectedThread({
               threadRow: row,
               latestTurn: latestTurnByThread.get(row.threadId) ?? null,
@@ -1192,12 +1208,22 @@ const makeProjectionSnapshotQuery = Effect.gen(function* () {
             sessionsByThread.set(row.threadId, toProjectedSession(row));
           }
 
+          const duplicateToCanonicalProjectId = buildCanonicalChatProjectMap(projectRows);
+          const canonicalProjectRows = excludeDuplicateActiveChatProjects(
+            projectRows,
+            duplicateToCanonicalProjectId,
+          );
+          const canonicalThreadRows = canonicalizeDuplicateChatThreadRows(
+            threadRows,
+            duplicateToCanonicalProjectId,
+          );
+
           const snapshot = {
             snapshotSequence: computeSnapshotSequence(stateRows),
-            projects: projectRows
+            projects: canonicalProjectRows
               .filter((row) => row.deletedAt === null)
               .map((row) => toProjectedProjectShell(row)),
-            threads: threadRows
+            threads: canonicalThreadRows
               .filter((row) => row.deletedAt === null)
               .map((row) =>
                 toProjectedThreadShellFromStoredSummary({
