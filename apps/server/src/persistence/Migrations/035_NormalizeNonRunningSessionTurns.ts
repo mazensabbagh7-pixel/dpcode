@@ -51,7 +51,7 @@ export default Effect.gen(function* () {
         SELECT 1
         FROM projection_thread_sessions
         WHERE projection_thread_sessions.thread_id = projection_turns.thread_id
-          AND projection_thread_sessions.status = 'ready'
+          AND projection_thread_sessions.status IN ('ready', 'stopped', 'error', 'interrupted')
       )
   `;
 
@@ -63,7 +63,7 @@ export default Effect.gen(function* () {
         SELECT 1
         FROM projection_thread_sessions
         WHERE projection_thread_sessions.thread_id = projection_turns.thread_id
-          AND projection_thread_sessions.status = 'ready'
+          AND projection_thread_sessions.status IN ('ready', 'stopped', 'error', 'interrupted')
       )
   `;
 
@@ -71,6 +71,6 @@ export default Effect.gen(function* () {
     UPDATE projection_thread_sessions
     SET active_turn_id = NULL
     WHERE active_turn_id IS NOT NULL
-      AND status = 'ready'
+      AND status IN ('ready', 'stopped', 'error', 'interrupted')
   `;
 });

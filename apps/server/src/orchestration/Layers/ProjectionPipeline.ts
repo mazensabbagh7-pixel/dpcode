@@ -108,6 +108,10 @@ const THREAD_SHELL_SUMMARY_ACTIVITY_KINDS = new Set([
   "provider.user-input.respond.failed",
 ]);
 
+const normalizeSessionActiveTurnId = (
+  session: Extract<OrchestrationEvent, { type: "thread.session-set" }>["payload"]["session"],
+) => (session.status === "ready" ? null : session.activeTurnId);
+
 const materializeAttachmentsForProjection = Effect.fn(
   (input: { readonly attachments: ReadonlyArray<ChatAttachment> }) =>
     Effect.succeed(input.attachments.length === 0 ? [] : input.attachments),
@@ -799,7 +803,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
           const nextRow = yield* withRefreshedThreadShellSummary({
             thread: {
               ...existingRow.value,
-              latestTurnId: event.payload.session.activeTurnId,
+              latestTurnId: normalizeSessionActiveTurnId(event.payload.session),
               updatedAt: event.occurredAt,
             },
             projectionThreadMessageRepository,
@@ -1115,8 +1119,7 @@ const makeOrchestrationProjectionPipeline = Effect.gen(function* () {
       if (event.type !== "thread.session-set") {
         return;
       }
-      const activeTurnId =
-        event.payload.session.status === "ready" ? null : event.payload.session.activeTurnId;
+      const activeTurnId = normalizeSessionActiveTurnId(event.payload.session);
       yield* projectionThreadSessionRepository.upsert({
         threadId: event.payload.threadId,
         status: event.payload.session.status,
