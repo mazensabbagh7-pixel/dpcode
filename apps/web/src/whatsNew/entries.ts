@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.41",
+    date: "Apr 27",
+    features: [
+      {
+        id: "startup-resumes-saved-chat",
+        title: "Startup resumes saved chats",
+        description:
+          "Opening DP Code now restores the last valid chat, or the latest saved chat, before creating a fresh thread so rebuilds do not look like chat history disappeared.",
+      },
+    ],
+  },
+  {
     version: "0.0.40",
     date: "Apr 27",
     features: [
