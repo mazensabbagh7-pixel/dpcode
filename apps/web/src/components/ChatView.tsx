@@ -285,6 +285,7 @@ import {
   type ComposerLocalDirectoryMenuHandle,
 } from "./chat/ComposerLocalDirectoryMenu";
 import { ComposerPendingApprovalActions } from "./chat/ComposerPendingApprovalActions";
+import { ComposerAgentMenu } from "./chat/ComposerAgentMenu";
 import { ComposerExtrasMenu } from "./chat/ComposerExtrasMenu";
 import { ComposerPendingApprovalPanel } from "./chat/ComposerPendingApprovalPanel";
 import { ComposerPendingUserInputPanel } from "./chat/ComposerPendingUserInputPanel";
@@ -6932,6 +6933,11 @@ export default function ChatView({
                     onToggleFastMode={toggleFastMode}
                     onSetPlanMode={setPlanMode}
                   />
+                  <ComposerAgentMenu
+                    activeProjectId={activeProjectId}
+                    compact={isComposerFooterCompact}
+                    onRunStarted={scheduleComposerFocus}
+                  />
 
                   {!isVoiceRecording && !isVoiceTranscribing ? (
                     <>
@@ -7648,6 +7654,11 @@ export default function ChatView({
                                 onAddPhotos={addComposerImages}
                                 onToggleFastMode={toggleFastMode}
                                 onSetPlanMode={setPlanMode}
+                              />
+                              <ComposerAgentMenu
+                                activeProjectId={activeProjectId}
+                                compact={isComposerFooterCompact}
+                                onRunStarted={scheduleComposerFocus}
                               />
 
                               {!isVoiceRecording && !isVoiceTranscribing ? (
