@@ -598,6 +598,25 @@ export function getUnpinnedThreadsForSidebar<T extends Pick<Thread, "id">>(
   return threads.filter((thread) => !pinnedThreadIdSet.has(thread.id));
 }
 
+// "Recent chats" is a global recents surface, not only the Home chat bucket.
+export function getRecentThreadsForSidebarChatSection<
+  T extends Pick<SidebarThreadSummary, "id" | "parentThreadId"> & SidebarThreadSortInput,
+>(input: {
+  threads: readonly T[];
+  pinnedThreadIds: readonly T["id"][];
+  threadSortOrder: SidebarThreadSortOrder;
+  expandedParentThreadIds: ReadonlySet<T["id"]>;
+}): SidebarThreadTreeRow<T>[] {
+  const recentThreads = sortThreadsForSidebar(
+    getUnpinnedThreadsForSidebar(input.threads, input.pinnedThreadIds),
+    input.threadSortOrder,
+  );
+  return buildProjectThreadTree({
+    threads: recentThreads,
+    expandedParentThreadIds: input.expandedParentThreadIds,
+  });
+}
+
 // Only prune persisted pins after the thread snapshot has hydrated.
 export function shouldPrunePinnedThreads(input: { threadsHydrated: boolean }): boolean {
   return input.threadsHydrated;

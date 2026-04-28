@@ -9,6 +9,7 @@ import {
   getFallbackThreadIdAfterDelete,
   getVisibleSidebarEntriesForPreview,
   getPinnedThreadsForSidebar,
+  getRecentThreadsForSidebarChatSection,
   getNextVisibleSidebarThreadId,
   getSidebarThreadIdForJumpCommand,
   getSidebarThreadIdsToPrewarm,
@@ -272,6 +273,39 @@ describe("pin helpers", () => {
     expect(
       getUnpinnedThreadsForSidebar(threads, ["thread-2" as ThreadId, "thread-3" as ThreadId]),
     ).toEqual([threads[0]]);
+  });
+
+  it("builds Recent chats from all recent workspace threads", () => {
+    const homeThread = makeSidebarThreadSummary({
+      id: ThreadId.makeUnsafe("thread-home"),
+      projectId: ProjectId.makeUnsafe("project-home"),
+      title: "Casual Greeting",
+      latestUserMessageAt: "2026-03-09T10:00:00.000Z",
+      updatedAt: "2026-03-09T10:00:00.000Z",
+    });
+    const projectThread = makeSidebarThreadSummary({
+      id: ThreadId.makeUnsafe("thread-project"),
+      projectId: ProjectId.makeUnsafe("project-thorvault"),
+      title: "Fix Mazencode Chats",
+      latestUserMessageAt: "2026-03-09T11:00:00.000Z",
+      updatedAt: "2026-03-09T11:00:00.000Z",
+    });
+    const pinnedThread = makeSidebarThreadSummary({
+      id: ThreadId.makeUnsafe("thread-pinned"),
+      projectId: ProjectId.makeUnsafe("project-fr8quoter"),
+      title: "Pinned",
+      latestUserMessageAt: "2026-03-09T12:00:00.000Z",
+      updatedAt: "2026-03-09T12:00:00.000Z",
+    });
+
+    expect(
+      getRecentThreadsForSidebarChatSection({
+        threads: [homeThread, projectThread, pinnedThread],
+        pinnedThreadIds: [pinnedThread.id],
+        threadSortOrder: "updated_at",
+        expandedParentThreadIds: new Set<ThreadId>(),
+      }).map((row) => row.thread.id),
+    ).toEqual([projectThread.id, homeThread.id]);
   });
 
   it("waits for thread hydration before pruning persisted pins", () => {

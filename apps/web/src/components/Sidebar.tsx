@@ -168,13 +168,13 @@ import { formatWorktreePathForDisplay, getOrphanedWorktreePathForThread } from "
 import { isNonEmpty as isNonEmptyString } from "effect/String";
 import {
   describeAddProjectError,
-  buildProjectThreadTree,
   deriveSidebarProjectData,
   extractDuplicateProjectCreateProjectId,
   findWorkspaceRootMatch,
   getFallbackThreadIdAfterDelete,
   getPinnedThreadsForSidebar,
   getNextVisibleSidebarThreadId,
+  getRecentThreadsForSidebarChatSection,
   getSidebarThreadIdsToPrewarm,
   getVisibleSidebarEntriesForPreview,
   groupSidebarThreadsByProjectId,
@@ -3370,24 +3370,19 @@ export default function Sidebar() {
     () => sortProjectsForSidebar(projects, sidebarThreads, appSettings.sidebarProjectSortOrder),
     [appSettings.sidebarProjectSortOrder, projects, sidebarThreads],
   );
-  const chatProjects = useMemo(
-    () => sortedProjects.filter((project) => isHomeChatContainerProject(project, homeDir)),
-    [homeDir, sortedProjects],
-  );
   const visibleChatThreadRows = useMemo(
     () =>
-      buildProjectThreadTree({
-        threads: sortThreadsForSidebar(
-          chatProjects.flatMap((project) => sortedSidebarThreadsByProjectId.get(project.id) ?? []),
-          appSettings.sidebarThreadSortOrder,
-        ),
+      getRecentThreadsForSidebarChatSection({
+        threads: sidebarDisplayThreads,
+        pinnedThreadIds,
+        threadSortOrder: appSettings.sidebarThreadSortOrder,
         expandedParentThreadIds: expandedSubagentParentIds,
       }),
     [
       appSettings.sidebarThreadSortOrder,
-      chatProjects,
       expandedSubagentParentIds,
-      sortedSidebarThreadsByProjectId,
+      pinnedThreadIds,
+      sidebarDisplayThreads,
     ],
   );
   const visibleChatThreadIds = useMemo(
