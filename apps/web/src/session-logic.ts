@@ -55,9 +55,6 @@ export interface WorkLogEntry {
   requestKind?: PendingApproval["requestKind"];
   subagents?: ReadonlyArray<WorkLogSubagent>;
   subagentAction?: WorkLogSubagentAction;
-  status?: "running" | "completed" | "failed";
-  durationMs?: number;
-  subject?: string;
 }
 
 export interface WorkLogSubagent {
@@ -695,39 +692,25 @@ function toDerivedWorkLogEntry(activity: OrchestrationThreadActivity): DerivedWo
     activity.payload && typeof activity.payload === "object"
       ? (activity.payload as Record<string, unknown>)
       : null;
-  const display = extractWorkDisplay(payload);
-  const command = display.command ?? extractToolCommand(payload);
-  const changedFiles =
-    display.changedFiles.length > 0 ? display.changedFiles : extractChangedFiles(payload);
-  const title = display.label ?? extractToolTitle(payload);
+  const command = extractToolCommand(payload);
+  const changedFiles = extractChangedFiles(payload);
+  const title = extractToolTitle(payload);
   const toolName = extractToolName(payload);
   const entry: DerivedWorkLogEntry = {
     id: activity.id,
     createdAt: activity.createdAt,
-    label: display.label ?? activity.summary,
-    tone:
-      display.status === "failed" ? "error" : activity.tone === "approval" ? "info" : activity.tone,
+    label: activity.summary,
+    tone: activity.tone === "approval" ? "info" : activity.tone,
     activityKind: activity.kind,
     ...(toolName ? { toolName } : {}),
   };
   const itemType = extractWorkLogItemType(payload);
   const requestKind = extractWorkLogRequestKind(payload);
-  const payloadDetail =
-    display.detail ?? (payload && typeof payload.detail === "string" ? payload.detail : undefined);
-  if (payloadDetail && payloadDetail.length > 0) {
-    const detail = stripTrailingExitCode(payloadDetail).output;
+  if (payload && typeof payload.detail === "string" && payload.detail.length > 0) {
+    const detail = stripTrailingExitCode(payload.detail).output;
     if (detail) {
       entry.detail = detail;
     }
-  }
-  if (display.status) {
-    entry.status = display.status;
-  }
-  if (display.durationMs !== undefined) {
-    entry.durationMs = display.durationMs;
-  }
-  if (display.subject) {
-    entry.subject = display.subject;
   }
   if (command) {
     entry.command = command;
@@ -818,9 +801,6 @@ function mergeDerivedWorkLogEntries(
   const requestKind = next.requestKind ?? previous.requestKind;
   const subagents = next.subagents ?? previous.subagents;
   const subagentAction = next.subagentAction ?? previous.subagentAction;
-  const status = next.status ?? previous.status;
-  const durationMs = next.durationMs ?? previous.durationMs;
-  const subject = next.subject ?? previous.subject;
   const collapseKey = next.collapseKey ?? previous.collapseKey;
   const toolName = next.toolName ?? previous.toolName;
   return {
@@ -834,9 +814,6 @@ function mergeDerivedWorkLogEntries(
     ...(requestKind ? { requestKind } : {}),
     ...(subagents ? { subagents } : {}),
     ...(subagentAction ? { subagentAction } : {}),
-    ...(status ? { status } : {}),
-    ...(durationMs !== undefined ? { durationMs } : {}),
-    ...(subject ? { subject } : {}),
     ...(collapseKey ? { collapseKey } : {}),
     ...(toolName ? { toolName } : {}),
   };
@@ -1157,47 +1134,6 @@ function isCommandLikeDetail(payload: Record<string, unknown> | null): boolean {
   }
   const normalizedTitle = normalizeCompactToolLabel(asTrimmedString(payload.title) ?? "");
   return normalizedTitle === "Ran command" || normalizedTitle === "Command run";
-}
-
-interface WorkDisplayPayload {
-  label?: string;
-  detail?: string;
-  command?: string;
-  changedFiles: string[];
-  status?: "running" | "completed" | "failed";
-  durationMs?: number;
-  subject?: string;
-}
-
-function extractWorkDisplay(payload: Record<string, unknown> | null): WorkDisplayPayload {
-  const display = asRecord(payload?.display);
-  const status = normalizeWorkDisplayStatus(display?.status ?? payload?.status);
-  const durationMs =
-    typeof display?.durationMs === "number" && Number.isFinite(display.durationMs)
-      ? display.durationMs
-      : undefined;
-  const changedFiles = Array.isArray(display?.changedFiles)
-    ? display.changedFiles.flatMap((file) => {
-        const normalized = asTrimmedString(file);
-        return normalized ? [normalized] : [];
-      })
-    : [];
-  return {
-    changedFiles,
-    ...(asTrimmedString(display?.label) ? { label: asTrimmedString(display?.label)! } : {}),
-    ...(asTrimmedString(display?.detail) ? { detail: asTrimmedString(display?.detail)! } : {}),
-    ...(asTrimmedString(display?.command) ? { command: asTrimmedString(display?.command)! } : {}),
-    ...(status ? { status } : {}),
-    ...(durationMs !== undefined ? { durationMs } : {}),
-    ...(asTrimmedString(display?.subject) ? { subject: asTrimmedString(display?.subject)! } : {}),
-  };
-}
-
-function normalizeWorkDisplayStatus(value: unknown): WorkDisplayPayload["status"] | undefined {
-  if (value === "running" || value === "in_progress" || value === "started") return "running";
-  if (value === "completed" || value === "success" || value === "succeeded") return "completed";
-  if (value === "failed" || value === "error") return "failed";
-  return undefined;
 }
 
 function extractToolCommand(payload: Record<string, unknown> | null): string | null {

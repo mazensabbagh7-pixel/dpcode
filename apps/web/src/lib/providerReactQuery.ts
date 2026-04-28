@@ -3,7 +3,7 @@ import {
   OrchestrationGetTurnDiffInput,
   ThreadId,
 } from "@t3tools/contracts";
-import { queryOptions, type QueryClient } from "@tanstack/react-query";
+import { queryOptions } from "@tanstack/react-query";
 import { Option, Schema } from "effect";
 import { ensureNativeApi } from "../nativeApi";
 
@@ -87,10 +87,6 @@ function isCheckpointTemporarilyUnavailable(error: unknown): boolean {
     message.includes("checkpoint is unavailable for turn") ||
     message.includes("filesystem checkpoint is unavailable")
   );
-}
-
-export function invalidateCheckpointDiffQueries(queryClient: QueryClient) {
-  return queryClient.invalidateQueries({ queryKey: ["providers", "checkpointDiff"] as const });
 }
 
 export function checkpointDiffQueryOptions(input: CheckpointDiffQueryInput) {

@@ -41,7 +41,7 @@ import {
   onServerProviderStatusesUpdated,
   onServerWelcome,
 } from "../wsNativeApi";
-import { invalidateCheckpointDiffQueries, providerQueryKeys } from "../lib/providerReactQuery";
+import { providerQueryKeys } from "../lib/providerReactQuery";
 import { projectQueryKeys } from "../lib/projectReactQuery";
 import { collectActiveTerminalThreadIds } from "../lib/terminalStateCleanup";
 import { TaskCompletionNotifications } from "../notifications/taskCompletion";
@@ -382,7 +382,6 @@ function EventRouter() {
     if (!api) return;
     let disposed = false;
     let needsProviderInvalidation = false;
-    let needsCheckpointDiffInvalidation = false;
     let needsGitInvalidation = false;
     let pendingDomainEvents: OrchestrationEvent[] = [];
     const immediatelyFlushedAssistantMessageIds = new Set<string>();
@@ -519,10 +518,6 @@ function EventRouter() {
         // reflects files created, deleted, or restored during this turn.
         void queryClient.invalidateQueries({ queryKey: projectQueryKeys.all });
       }
-      if (needsCheckpointDiffInvalidation) {
-        needsCheckpointDiffInvalidation = false;
-        void invalidateCheckpointDiffQueries(queryClient);
-      }
       if (needsGitInvalidation) {
         needsGitInvalidation = false;
         void invalidateGitQueries(queryClient);
@@ -531,10 +526,11 @@ function EventRouter() {
 
     const queueDomainEvent = (event: OrchestrationEvent) => {
       pendingDomainEvents.push(event);
-      if (event.type === "thread.turn-diff-completed") {
-        needsCheckpointDiffInvalidation = true;
-      }
-      if (event.type === "thread.reverted" || event.type === "thread.conversation-rolled-back") {
+      if (
+        event.type === "thread.turn-diff-completed" ||
+        event.type === "thread.reverted" ||
+        event.type === "thread.conversation-rolled-back"
+      ) {
         needsProviderInvalidation = true;
       }
       if (
