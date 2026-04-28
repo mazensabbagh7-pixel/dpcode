@@ -22,6 +22,16 @@ describe("projectCreateRecovery", () => {
     ).toBe(true);
   });
 
+  it("detects duplicate project.create invariant failures wrapped by Error strings", () => {
+    const wrappedMessage =
+      "Error: Orchestration command invariant failed (project.create): Project 'df56363d-323a-42b5-8f0a-d62c246c8441' already uses workspace root '/home/mazen/Documents'. at invariantError";
+
+    expect(isDuplicateProjectCreateError(wrappedMessage)).toBe(true);
+    expect(extractDuplicateProjectCreateProjectId(wrappedMessage)).toBe(
+      "df56363d-323a-42b5-8f0a-d62c246c8441",
+    );
+  });
+
   it("extracts the existing project id from duplicate invariant failures", () => {
     expect(
       extractDuplicateProjectCreateProjectId(

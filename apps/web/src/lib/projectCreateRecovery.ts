@@ -38,21 +38,26 @@ function wait(ms: number): Promise<void> {
 
 // Parses the invariant text so the UI can recover existing projects instead of failing imports.
 export function isDuplicateProjectCreateError(message: string): boolean {
-  if (!message.startsWith(DUPLICATE_PROJECT_CREATE_ERROR_PREFIX)) {
+  const prefixIndex = message.indexOf(DUPLICATE_PROJECT_CREATE_ERROR_PREFIX);
+  if (prefixIndex < 0) {
     return false;
   }
 
-  const duplicateMarkerIndex = message.indexOf("' already uses workspace root '");
-  return duplicateMarkerIndex > DUPLICATE_PROJECT_CREATE_ERROR_PREFIX.length;
+  const duplicateMarkerIndex = message.indexOf("' already uses workspace root '", prefixIndex);
+  return duplicateMarkerIndex > prefixIndex + DUPLICATE_PROJECT_CREATE_ERROR_PREFIX.length;
 }
 
 export function extractDuplicateProjectCreateProjectId(message: string): string | null {
-  if (!isDuplicateProjectCreateError(message)) {
+  const prefixIndex = message.indexOf(DUPLICATE_PROJECT_CREATE_ERROR_PREFIX);
+  if (prefixIndex < 0 || !isDuplicateProjectCreateError(message)) {
     return null;
   }
 
-  const duplicateMarkerIndex = message.indexOf("' already uses workspace root '");
-  return message.slice(DUPLICATE_PROJECT_CREATE_ERROR_PREFIX.length, duplicateMarkerIndex) || null;
+  const duplicateMarkerIndex = message.indexOf("' already uses workspace root '", prefixIndex);
+  return (
+    message.slice(prefixIndex + DUPLICATE_PROJECT_CREATE_ERROR_PREFIX.length, duplicateMarkerIndex) ||
+    null
+  );
 }
 
 export function findRecoverableProject<T extends DuplicateProjectCreateRecoveryCandidate>(
