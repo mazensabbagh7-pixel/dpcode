@@ -539,6 +539,79 @@ describe("store pure functions", () => {
     expect(next.projects[0]?.id).toBe(ProjectId.makeUnsafe("project-canonical"));
   });
 
+  it("replaces a newer duplicate project with the older canonical project event", () => {
+    const duplicateProjectId = ProjectId.makeUnsafe("project-duplicate");
+    const canonicalProjectId = ProjectId.makeUnsafe("project-canonical");
+    const threadId = ThreadId.makeUnsafe("thread-duplicate");
+    const initialState: AppState = {
+      projects: [
+        makeProject({
+          id: duplicateProjectId,
+          name: "Documents",
+          remoteName: "Documents",
+          folderName: "Documents",
+          cwd: "/home/mazen/Documents",
+          createdAt: "2026-02-27T00:05:00.000Z",
+          updatedAt: "2026-02-27T00:05:00.000Z",
+        }),
+      ],
+      threads: [
+        makeThread({
+          id: threadId,
+          projectId: duplicateProjectId,
+        }),
+      ],
+      sidebarThreadSummaryById: {
+        [threadId]: {
+          id: threadId,
+          projectId: duplicateProjectId,
+          title: "Thread",
+          modelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
+          interactionMode: DEFAULT_INTERACTION_MODE,
+          envMode: "local",
+          branch: null,
+          worktreePath: null,
+          session: null,
+          createdAt: "2026-02-13T00:00:00.000Z",
+          latestTurn: null,
+          latestUserMessageAt: null,
+          hasPendingApprovals: false,
+          hasPendingUserInput: false,
+          hasActionableProposedPlan: false,
+          hasLiveTailWork: false,
+        },
+      },
+      threadsHydrated: true,
+    };
+
+    const next = applyOrchestrationEvents(initialState, [
+      makeDomainEvent(
+        "project.created",
+        {
+          projectId: canonicalProjectId,
+          title: "Documents",
+          workspaceRoot: "/home/mazen/Documents",
+          defaultModelSelection: {
+            provider: "codex",
+            model: "gpt-5-codex",
+          },
+          scripts: [],
+          createdAt: "2026-02-27T00:00:00.000Z",
+          updatedAt: "2026-02-27T00:00:00.000Z",
+        },
+        { aggregateKind: "project" },
+      ),
+    ]);
+
+    expect(next.projects).toHaveLength(1);
+    expect(next.projects[0]?.id).toBe(canonicalProjectId);
+    expect(next.threads[0]?.projectId).toBe(canonicalProjectId);
+    expect(next.sidebarThreadSummaryById[threadId]?.projectId).toBe(canonicalProjectId);
+  });
+
   it("updates existing projects immediately from live project.meta-updated events", () => {
     const initialState: AppState = {
       projects: [

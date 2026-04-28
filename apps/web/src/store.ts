@@ -685,15 +685,29 @@ function upsertProjectFromReadModel(state: AppState, incoming: ReadModelProject)
         project.kind === (incoming.kind ?? "project") &&
         projectCwdKey(project.cwd) === projectCwdKey(incoming.workspaceRoot),
     );
+
+  if (
+    existingProject &&
+    existingProject.id !== incoming.id &&
+    existingProject.createdAt !== undefined &&
+    existingProject.createdAt <= incoming.createdAt
+  ) {
+    return state;
+  }
+
   const nextProject = normalizeProjectFromReadModel(incoming, existingProject);
 
   if (existingProject) {
     if (existingProject === nextProject) {
       return state;
     }
+    const nextState =
+      existingProject.id === incoming.id
+        ? state
+        : remapProjectIdReferences(state, existingProject.id, incoming.id);
     return {
-      ...state,
-      projects: state.projects.map((project) =>
+      ...nextState,
+      projects: nextState.projects.map((project) =>
         project.id === existingProject.id ? nextProject : project,
       ),
     };
@@ -703,6 +717,44 @@ function upsertProjectFromReadModel(state: AppState, incoming: ReadModelProject)
     ...state,
     projects: [...state.projects, nextProject],
   };
+}
+
+function remapProjectIdReferences(
+  state: AppState,
+  fromProjectId: Project["id"],
+  toProjectId: Project["id"],
+): AppState {
+  const remapThread = <T extends { readonly projectId: Project["id"] }>(thread: T): T =>
+    thread.projectId === fromProjectId ? { ...thread, projectId: toProjectId } : thread;
+  const remapThreadRecord = <T extends { readonly projectId: Project["id"] }>(
+    record: Record<ThreadId, T> | undefined,
+  ): Record<ThreadId, T> | undefined => {
+    if (!record) {
+      return record;
+    }
+    let changed = false;
+    const nextEntries = Object.entries(record).map(([threadId, thread]) => {
+      const nextThread = remapThread(thread);
+      if (nextThread !== thread) {
+        changed = true;
+      }
+      return [threadId, nextThread] as const;
+    });
+    return changed ? (Object.fromEntries(nextEntries) as Record<ThreadId, T>) : record;
+  };
+
+  const nextState: AppState = {
+    ...state,
+    threads: state.threads.map(remapThread),
+    sidebarThreadSummaryById: Object.fromEntries(
+      Object.entries(state.sidebarThreadSummaryById).map(([threadId, summary]) => [
+        threadId,
+        remapThread(summary),
+      ]),
+    ) as Record<string, SidebarThreadSummary>,
+  };
+  const threadShellById = remapThreadRecord(state.threadShellById);
+  return threadShellById === undefined ? nextState : { ...nextState, threadShellById };
 }
 
 function upsertProjectFromShell(state: AppState, incoming: ShellSnapshotProject): AppState {
@@ -2788,16 +2840,7 @@ function applyOrchestrationEvent(
   },
 ): AppState {
   switch (event.type) {
-    case "project.created": {
-      const existingProject = state.projects.find(
-        (project) =>
-          project.id !== event.payload.projectId &&
-          project.kind === (event.payload.kind ?? "project") &&
-          projectCwdKey(project.cwd) === projectCwdKey(event.payload.workspaceRoot),
-      );
-      if (existingProject) {
-        return state;
-      }
+    case "project.created":
       return upsertProjectFromReadModel(state, {
         id: event.payload.projectId,
         kind: event.payload.kind,
@@ -2809,7 +2852,6 @@ function applyOrchestrationEvent(
         updatedAt: event.payload.updatedAt,
         deletedAt: null,
       });
-    }
 
     case "project.meta-updated": {
       const existingProject = state.projects.find(
