@@ -1735,7 +1735,7 @@ describe("hasLiveTurnTailWork", () => {
 });
 
 describe("PROVIDER_OPTIONS", () => {
-  it("lists available providers", () => {
+  it("lists Codex, Claudio, Gemini, OpenCode, and Hermes as available providers", () => {
     const claude = PROVIDER_OPTIONS.find((option) => option.value === "claudeAgent");
     const gemini = PROVIDER_OPTIONS.find((option) => option.value === "gemini");
     const opencode = PROVIDER_OPTIONS.find((option) => option.value === "opencode");

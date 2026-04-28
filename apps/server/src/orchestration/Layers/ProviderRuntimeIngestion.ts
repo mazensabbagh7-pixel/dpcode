@@ -139,6 +139,113 @@ function buildToolProgressActivityPayload(
   };
 }
 
+function buildWorkDisplayPayload(input: {
+  itemType: string;
+  status?: string | undefined;
+  title?: string | undefined;
+  detail?: string | undefined;
+  data?: unknown;
+}): Record<string, unknown> {
+  const command = extractDisplayCommand(input.data);
+  const changedFiles = extractDisplayChangedFiles(input.data);
+  const label = displayLabelForItemType(input.itemType, input.status, input.title);
+  const display: Record<string, unknown> = {
+    itemType: input.itemType,
+    status: input.status ?? "running",
+    label,
+    ...(input.detail ? { detail: truncateDetail(input.detail) } : {}),
+    ...(command ? { command } : {}),
+    ...(changedFiles.length > 0 ? { changedFiles } : {}),
+  };
+  return {
+    itemType: input.itemType,
+    ...(input.status ? { status: input.status } : {}),
+    ...(input.title ? { title: input.title } : {}),
+    ...(input.detail ? { detail: truncateDetail(input.detail) } : {}),
+    ...(input.data !== undefined ? { data: input.data } : {}),
+    display,
+  };
+}
+
+function displayLabelForItemType(
+  itemType: string,
+  status: string | undefined,
+  title: string | undefined,
+): string {
+  const completed = status === "completed" || status === "success" || status === "succeeded";
+  const failed = status === "failed" || status === "error";
+  if (itemType === "command_execution") {
+    return failed ? "Command failed" : completed ? "Ran command" : "Running command";
+  }
+  if (itemType === "file_change") {
+    return failed ? "File edit failed" : completed ? "Updated files" : "Editing files";
+  }
+  if (itemType === "file_read") {
+    return completed ? "Read files" : "Reading files";
+  }
+  if (itemType === "web_search") {
+    return completed ? "Searched web" : "Searching web";
+  }
+  return title ?? (completed ? "Tool completed" : "Tool running");
+}
+
+function extractDisplayCommand(value: unknown): string | undefined {
+  const record = asObject(value);
+  const item = asObject(record?.item) ?? record;
+  const input = asObject(item?.input);
+  for (const candidate of [
+    item?.command,
+    item?.cmd,
+    input?.command,
+    input?.cmd,
+    record?.command,
+    record?.cmd,
+  ]) {
+    if (typeof candidate === "string" && candidate.trim()) return candidate.trim();
+    if (Array.isArray(candidate) && candidate.every((part) => typeof part === "string")) {
+      return candidate.join(" ").trim();
+    }
+  }
+  return undefined;
+}
+
+function extractDisplayChangedFiles(value: unknown): string[] {
+  const result: string[] = [];
+  const seen = new Set<string>();
+  const visit = (current: unknown, depth: number) => {
+    if (depth > 4 || result.length >= 12) return;
+    if (Array.isArray(current)) {
+      for (const entry of current) visit(entry, depth + 1);
+      return;
+    }
+    const record = asObject(current);
+    if (!record) return;
+    for (const key of ["path", "filePath", "relativePath", "filename", "newPath", "oldPath"]) {
+      const value = record[key];
+      if (typeof value === "string" && value.trim() && !seen.has(value.trim())) {
+        seen.add(value.trim());
+        result.push(value.trim());
+      }
+    }
+    for (const key of [
+      "item",
+      "result",
+      "input",
+      "data",
+      "changes",
+      "files",
+      "edits",
+      "patch",
+      "patches",
+      "operations",
+    ]) {
+      if (key in record) visit(record[key], depth + 1);
+    }
+  };
+  visit(value, 0);
+  return result;
+}
+
 function normalizeProposedPlanMarkdown(planMarkdown: string | undefined): string | undefined {
   const trimmed = planMarkdown?.trim();
   if (!trimmed) {
@@ -705,13 +812,16 @@ function runtimeEventToActivities(
           createdAt: event.createdAt,
           tone: "tool",
           kind: "tool.updated",
-          summary: event.payload.title ?? "Tool updated",
-          payload: {
+          summary:
+            event.payload.title ??
+            displayLabelForItemType(event.payload.itemType, event.payload.status, undefined),
+          payload: buildWorkDisplayPayload({
             itemType: event.payload.itemType,
-            ...(event.payload.status ? { status: event.payload.status } : {}),
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
-          },
+            status: event.payload.status,
+            title: event.payload.title,
+            detail: event.payload.detail,
+            data: event.payload.data,
+          }),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },
@@ -728,14 +838,16 @@ function runtimeEventToActivities(
           createdAt: event.createdAt,
           tone: "tool",
           kind: "tool.completed",
-          summary: event.payload.title ?? "Tool",
-          payload: {
+          summary:
+            event.payload.title ??
+            displayLabelForItemType(event.payload.itemType, event.payload.status, undefined),
+          payload: buildWorkDisplayPayload({
             itemType: event.payload.itemType,
-            ...(event.payload.status ? { status: event.payload.status } : {}),
-            ...(event.payload.title ? { title: event.payload.title } : {}),
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
-          },
+            status: event.payload.status,
+            title: event.payload.title,
+            detail: event.payload.detail,
+            data: event.payload.data,
+          }),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },
@@ -752,14 +864,18 @@ function runtimeEventToActivities(
           createdAt: event.createdAt,
           tone: "tool",
           kind: "tool.started",
-          summary: `${event.payload.title ?? "Tool"} started`,
-          payload: {
+          summary: displayLabelForItemType(
+            event.payload.itemType,
+            event.payload.status,
+            event.payload.title,
+          ),
+          payload: buildWorkDisplayPayload({
             itemType: event.payload.itemType,
-            ...(event.payload.status ? { status: event.payload.status } : {}),
-            ...(event.payload.title ? { title: event.payload.title } : {}),
-            ...(event.payload.detail ? { detail: truncateDetail(event.payload.detail) } : {}),
-            ...(event.payload.data !== undefined ? { data: event.payload.data } : {}),
-          },
+            status: event.payload.status,
+            title: event.payload.title,
+            detail: event.payload.detail,
+            data: event.payload.data,
+          }),
           turnId: toTurnId(event.turnId) ?? null,
           ...maybeSequence,
         },
