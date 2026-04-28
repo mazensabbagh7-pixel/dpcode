@@ -26,7 +26,7 @@ import {
   patchCustomModels,
   useAppSettings,
 } from "../appSettings";
-import { APP_VERSION } from "../branding";
+import { APP_COMPACT_NAME, APP_VERSION } from "../branding";
 import { ClaudeAI, Gemini, OpenAI, OpenCodeIcon } from "../components/Icons";
 import { Button } from "../components/ui/button";
 import { Collapsible, CollapsibleContent } from "../components/ui/collapsible";
@@ -1243,7 +1243,7 @@ function SettingsRouteView() {
         <div className="space-y-2">
           <SettingsRow
             title="Theme"
-            description="Choose how DP Code looks across the app."
+            description={`Choose how ${APP_COMPACT_NAME} looks across the app.`}
             resetAction={
               theme !== "system" ? (
                 <SettingResetButton label="theme" onClick={() => setTheme("system")} />

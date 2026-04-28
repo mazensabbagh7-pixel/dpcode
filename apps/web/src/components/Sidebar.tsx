@@ -71,7 +71,7 @@ import {
   useAppSettings,
 } from "../appSettings";
 import { isElectron } from "../env";
-import { APP_VERSION } from "../branding";
+import { APP_BASE_NAME, APP_COMPACT_NAME, APP_VERSION } from "../branding";
 import { showConfirmDialogFallback } from "../confirmDialogFallback";
 import { isMacPlatform, newCommandId, newProjectId, newThreadId, randomUUID } from "../lib/utils";
 import { persistAppStateNow, useStore } from "../store";
@@ -745,13 +745,15 @@ function prStatusIndicator(pr: ThreadPr): PrStatusIndicator | null {
   return null;
 }
 
-function T3Wordmark() {
+function MazenCodeWordmark() {
   return (
-    <span
-      aria-label="Mazen"
-      className="shrink-0 text-[14px] font-semibold tracking-tight text-foreground"
-    >
-      Mazen
+    <span className="flex min-w-0 items-center gap-2" aria-label={APP_BASE_NAME}>
+      <span className="flex size-6 shrink-0 items-center justify-center overflow-hidden rounded-md border border-border/55 bg-background/70">
+        <img alt="" className="size-4 object-contain" draggable={false} src="/dpcode-hero.png" />
+      </span>
+      <span className="truncate text-[14px] font-semibold tracking-tight text-foreground">
+        {APP_COMPACT_NAME}
+      </span>
     </span>
   );
 }
@@ -5020,7 +5022,7 @@ export default function Sidebar() {
             toastManager.add({
               type: "info",
               title: "You're up to date",
-              description: `DP Code ${nextState.currentVersion} is already the newest version.`,
+              description: `${APP_COMPACT_NAME} ${nextState.currentVersion} is already the newest version.`,
             });
             return;
           }
@@ -5141,10 +5143,7 @@ export default function Sidebar() {
           render={
             <div className="flex min-w-0 flex-1 cursor-pointer items-center gap-2 font-system-ui">
               <div className="flex min-w-0 items-center gap-1">
-                <T3Wordmark />
-                <span className="truncate text-[14px] font-normal tracking-tight text-foreground/82">
-                  Code
-                </span>
+                <MazenCodeWordmark />
               </div>
             </div>
           }
@@ -5445,7 +5444,7 @@ export default function Sidebar() {
                 )}
                 <div className="my-1 flex items-center justify-between px-2 py-1">
                   <span className="text-[length:var(--app-font-size-ui,12px)] font-normal tracking-tight text-muted-foreground/58">
-                    Threads
+                    Projects
                   </span>
                   <div className="-mr-1 flex items-center gap-1.5">
                     {standardProjects.length > 0 ? (
@@ -5661,7 +5660,7 @@ export default function Sidebar() {
                 </span>
                 <div className="flex min-w-0 flex-1 items-baseline gap-2 overflow-hidden">
                   <span className="truncate font-system-ui text-[length:var(--app-font-size-ui,12px)] font-normal text-muted-foreground/72">
-                    Chats
+                    Recent chats
                   </span>
                 </div>
               </SidebarMenuButton>

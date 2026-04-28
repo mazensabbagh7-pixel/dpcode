@@ -4,6 +4,7 @@
 // Depends on: the caller-supplied project display name.
 
 import { memo } from "react";
+import { APP_MARK_ALT } from "~/branding";
 
 export const ChatEmptyStateHero = memo(function ChatEmptyStateHero({
   projectName,
@@ -13,8 +14,8 @@ export const ChatEmptyStateHero = memo(function ChatEmptyStateHero({
   return (
     <div className="flex flex-col items-center gap-5 select-none">
       <img
-        alt="DP Code logo"
-        className="size-14 rounded-lg object-contain"
+        alt={APP_MARK_ALT}
+        className="size-12 object-contain opacity-90"
         draggable={false}
         height={112}
         src="/dpcode-hero.png"

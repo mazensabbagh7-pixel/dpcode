@@ -22,6 +22,18 @@ import type { WhatsNewEntry } from "./logic";
 
 export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
   {
+    version: "0.0.43",
+    date: "Apr 27",
+    features: [
+      {
+        id: "mazencode-chat-brand-polish",
+        title: "Chats feel cleaner",
+        description:
+          "The chat sidebar, blank-chat state, splash screen, settings labels, and release surfaces now use the cleaner MazenCode identity instead of legacy labels.",
+      },
+    ],
+  },
+  {
     version: "0.0.42",
     date: "Apr 27",
     features: [
@@ -41,7 +53,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "startup-resumes-saved-chat",
         title: "Startup resumes saved chats",
         description:
-          "Opening DP Code now restores the last valid chat, or the latest saved chat, before creating a fresh thread so rebuilds do not look like chat history disappeared.",
+          "Opening MazenCode now restores the last valid chat, or the latest saved chat, before creating a fresh thread so rebuilds do not look like chat history disappeared.",
       },
     ],
   },
@@ -53,7 +65,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "hermes-staging-home-hotfix",
         title: "Hermes uses the staging profile",
         description:
-          "Mac Mini Hermes launches now set HERMES_HOME to the existing staging profile so DP Code uses the same configured provider/model path as Hermes Telegram without managing the gateway.",
+          "Mac Mini Hermes launches now set HERMES_HOME to the existing staging profile so MazenCode uses the same configured provider/model path as Hermes Telegram without managing the gateway.",
       },
     ],
   },
@@ -113,7 +125,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "gpt-5-5-available",
         title: "GPT-5.5 is available",
         description:
-          "GPT-5.5 is now in the model picker with the right default reasoning behavior, so you can move new Codex sessions onto the latest model directly from DP Code.",
+          "GPT-5.5 is now in the model picker with the right default reasoning behavior, so you can move new Codex sessions onto the latest model directly from MazenCode.",
       },
       {
         id: "opencode-provider",
@@ -167,7 +179,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "desktop-boot-splash-screen",
         title: "🚀 Desktop startup feels clearer",
         description:
-          "DP Code now shows a proper splash screen while the desktop backend spins up, so launch feels intentional instead of looking briefly stalled.",
+          "MazenCode now shows a proper splash screen while the desktop backend spins up, so launch feels intentional instead of looking briefly stalled.",
       },
       {
         id: "provider-capability-and-theme-polish",
@@ -191,7 +203,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "theme-pack-editor",
         title: "🎨 Theme packs are editable",
         description:
-          "The new theme pack editor lets you tune UI colors directly in DP Code, with shared theme tokens keeping the sidebar, composer, transcript, and controls in sync.",
+          "The new theme pack editor lets you tune UI colors directly in MazenCode, with shared theme tokens keeping the sidebar, composer, transcript, and controls in sync.",
       },
       {
         id: "sidebar-notifications",
@@ -269,7 +281,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "update-check-timeout-recovery",
         title: "🛟 No more stuck checking state",
         description:
-          "If the updater never answers, DP Code now times out and recovers instead of hanging on a permanent Checking status.",
+          "If the updater never answers, MazenCode now times out and recovers instead of hanging on a permanent Checking status.",
       },
     ],
   },
@@ -287,7 +299,7 @@ export const WHATS_NEW_ENTRIES: readonly WhatsNewEntry[] = [
         id: "custom-provider-binaries",
         title: "🛠️ Custom binary paths for every provider",
         description:
-          "Point DP Code at your own Codex, Claude, or Gemini binary when your setup lives outside the default install path.",
+          "Point MazenCode at your own Codex, Claude, or Gemini binary when your setup lives outside the default install path.",
       },
       {
         id: "assistant-selections-as-context",

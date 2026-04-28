@@ -10,6 +10,7 @@ import { normalizeModelSlug } from "@t3tools/shared/model";
 import { sanitizeBranchFragment } from "@t3tools/shared/git";
 import { isGenericChatThreadTitle } from "@t3tools/shared/chatThreads";
 import { isGenericTerminalThreadTitle } from "@t3tools/shared/terminalThreads";
+import { APP_COMPACT_NAME } from "~/branding";
 import {
   type ChatAssistantSelectionAttachment,
   type ChatMessage,
@@ -160,7 +161,7 @@ export function describeVoiceRecordingStartError(error: unknown): string {
   const errorName = typeof error.name === "string" ? error.name : "";
 
   if (errorName === "NotAllowedError" || errorName === "PermissionDeniedError") {
-    return "Microphone access was denied. Enable it in macOS Privacy & Security > Microphone for DP Code, then try again.";
+    return `Microphone access was denied. Enable it in macOS Privacy & Security > Microphone for ${APP_COMPACT_NAME}, then try again.`;
   }
   if (errorName === "NotFoundError" || errorName === "DevicesNotFoundError") {
     return "No microphone was found. Connect one and try again.";

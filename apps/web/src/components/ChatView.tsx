@@ -60,6 +60,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Debouncer, useDebouncedValue } from "@tanstack/react-pacer";
 import { useNavigate, useSearch } from "@tanstack/react-router";
 import { type LegendListRef } from "@legendapp/list/react";
+import { APP_MARK_ALT } from "~/branding";
 import { gitCreateWorktreeMutationOptions, gitBranchesQueryOptions } from "~/lib/gitReactQuery";
 import { resolveProviderDiscoveryCwd } from "~/lib/providerDiscovery";
 import {
@@ -7317,8 +7318,8 @@ export default function ChatView({
                 <div className="flex w-full max-w-3xl flex-col justify-center">
                   <div className="flex flex-col items-center gap-4 px-6 pb-5 text-center select-none">
                     <img
-                      alt="DP Code logo"
-                      className="size-12 rounded-lg object-contain"
+                      alt={APP_MARK_ALT}
+                      className="size-11 object-contain opacity-90"
                       draggable={false}
                       height={96}
                       src="/dpcode-hero.png"

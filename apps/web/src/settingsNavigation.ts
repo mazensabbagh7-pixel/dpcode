@@ -14,6 +14,7 @@ import {
   WrenchIcon,
   WorktreeIcon,
 } from "./lib/icons";
+import { APP_COMPACT_NAME } from "./branding";
 
 export const SETTINGS_SECTION_IDS = [
   "general",
@@ -43,7 +44,7 @@ export const SETTINGS_NAV_GROUPS: ReadonlyArray<{
   label: string;
 }> = [
   { id: "app", label: "App" },
-  { id: "dpcode", label: "DP Code" },
+  { id: "dpcode", label: APP_COMPACT_NAME },
 ] as const;
 
 export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
@@ -83,7 +84,7 @@ export const SETTINGS_NAV_ITEMS: readonly SettingsNavItem[] = [
     id: "worktrees",
     group: "app",
     label: "Worktrees",
-    description: "Review and clean up the worktrees created by DP Code.",
+    description: `Review and clean up the worktrees created by ${APP_COMPACT_NAME}.`,
     icon: WorktreeIcon,
     eyebrow: "Workspace management",
   },
